@@ -1,0 +1,46 @@
+#!/bin/sh
+
+set -x
+
+VERSION=2.3.1
+BASEDIR=$PWD
+ROOTDIR=$BASEDIR/install
+SRCDIR=$BASEDIR/OpenFOAM-$VERSION
+
+# Check whether we need to download the tarbalj0j0
+if [ ! -f OpenFOAM-$VERSION.tgz ]; then
+    wget http://downloads.sourceforge.net/foam/OpenFOAM-$VERSION.tgz
+fi
+# Extract the target version
+tar zxf OpenFOAM-$VERSION.tgz
+
+# Set OpenFOAM's environment variables required to build the package. You should change this to cshrc if
+# that's the shell you are using.
+export FOAM_INST_DIR=$BASEDIR
+. $SRCDIR/etc/bashrc
+
+# First, compile the wmake used to build OpenFOAM sources.
+cd $SRCDIR/wmake/src
+make
+
+# Make the OpenFOAM library
+cd $SRCDIR/src
+./Allwmake
+
+# Apply the patch changing WMake options to position independent executables.
+cd $SRCDIR
+patch -p1 < $BASEDIR/pie.patch
+
+# Go and build the simpleFoam
+cd $SRCDIR/applications/solvers/incompressible/simpleFoam
+wmake
+
+cd $BASEDIR
+mkdir -p install/lib
+
+ldd $SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTDIR/lib
+
+echo "
+/usr/lib/**:${ROOTDIR}/lib/**
+/usr/bin/simpleFoam:$SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam
+" > usr.manifest

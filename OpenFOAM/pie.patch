@@ -1,0 +1,54 @@
+From e7e6bce53890d569b84d0ded12d461e984ac0463 Mon Sep 17 00:00:00 2001
+From: Gregor Berginc <gregor.berginc@xlab.si>
+Date: Wed, 1 Apr 2015 20:40:11 +0200
+Subject: [PATCH] Change build and link options to make position independent
+ executable
+
+---
+ wmake/rules/linux64Gcc/c   | 6 +++---
+ wmake/rules/linux64Gcc/c++ | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/wmake/rules/linux64Gcc/c b/wmake/rules/linux64Gcc/c
+index f4114be..506681a 100644
+--- a/wmake/rules/linux64Gcc/c
++++ b/wmake/rules/linux64Gcc/c
+@@ -6,11 +6,11 @@ cc          = gcc -m64
+ 
+ include $(RULES)/c$(WM_COMPILE_OPTION)
+ 
+-cFLAGS      = $(GFLAGS) $(cWARN) $(cOPT) $(cDBUG) $(LIB_HEADER_DIRS) -fPIC
++cFLAGS      = $(GFLAGS) $(cWARN) $(cOPT) $(cDBUG) $(LIB_HEADER_DIRS) -fpie
+ 
+ ctoo        = $(WM_SCHEDULER) $(cc) $(cFLAGS) -c $$SOURCE -o $@
+ 
+ LINK_LIBS   = $(cDBUG)
+ 
+-LINKLIBSO   = $(cc) -shared
+-LINKEXE     = $(cc) -Xlinker --add-needed -Xlinker -z -Xlinker nodefs
++LINKLIBSO   = $(cc) -pie -shared
++LINKEXE     = $(cc) -pie
+diff --git a/wmake/rules/linux64Gcc/c++ b/wmake/rules/linux64Gcc/c++
+index 3dfb033..3065d90 100644
+--- a/wmake/rules/linux64Gcc/c++
++++ b/wmake/rules/linux64Gcc/c++
+@@ -8,7 +8,7 @@ include $(RULES)/c++$(WM_COMPILE_OPTION)
+ 
+ ptFLAGS     = -DNoRepository -ftemplate-depth-100
+ 
+-c++FLAGS    = $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) $(LIB_HEADER_DIRS) -fPIC
++c++FLAGS    = $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) $(LIB_HEADER_DIRS) -fpie
+ 
+ Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $$SOURCE -o $@
+ cxxtoo      = $(Ctoo)
+@@ -17,5 +17,5 @@ cpptoo      = $(Ctoo)
+ 
+ LINK_LIBS   = $(c++DBUG)
+ 
+-LINKLIBSO   = $(CC) $(c++FLAGS) -shared -Xlinker --add-needed -Xlinker --no-as-needed
+-LINKEXE     = $(CC) $(c++FLAGS) -Xlinker --add-needed -Xlinker --no-as-needed
++LINKLIBSO   = $(CC) $(c++FLAGS) -pie -shared -Xlinker --add-needed -Xlinker --no-as-needed
++LINKEXE     = $(CC) $(c++FLAGS) -pie -shared -Xlinker --add-needed -Xlinker --no-as-needed
+-- 
+1.9.1
+
