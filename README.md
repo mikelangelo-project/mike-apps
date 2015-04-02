@@ -1,6 +1,8 @@
-# This is the home of all applications used within Mikelangelo project.
+# Mikelangelo Apps
 
-To use the repository, you have to clone it first. Then, you must edit the ```repositories``` section of the ```$OSV_HOME/config.json``` file, for example
+To use the repository, you have to clone it first on your machine.
+
+Then, you must edit the ```repositories``` section of the ```$OSV_HOME/config.json``` file, for example
 
 ```bash
     "repositories": [
@@ -10,7 +12,9 @@ To use the repository, you have to clone it first. Then, you must edit the ```re
     ]
 ```
 
-Now you can simply build OSv images integrating applications from the Mikelangelo apps repository
+Make sure that existing repositories are preserved in case you would like to use applications and modules from those repositories. 
+
+To build OSv images integrating applications from the Mikelangelo apps repository use
 
 ```bash
 make image=OpenFOAM
