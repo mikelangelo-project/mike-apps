@@ -23,6 +23,10 @@ export FOAM_INST_DIR=$BASEDIR
 cd $SRCDIR/wmake/src
 make
 
+# Patch the solidMixtureProperties library
+cd $SRCDIR
+patch -p1 < $BASEDIR/0001-Adds-dependency-from-solidMixtureProperties-to-solid.patch
+
 # Make the OpenFOAM library
 cd $SRCDIR/src
 ./Allwmake
