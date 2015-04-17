@@ -47,4 +47,5 @@ ldd $SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' 
 echo "
 /usr/lib/**:${ROOTDIR}/lib/**
 /usr/bin/simpleFoam:$SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam
+/openfoam/etc/controlDict:$SRCDIR/etc/controlDict
 " > usr.manifest
