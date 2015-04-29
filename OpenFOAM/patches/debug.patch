@@ -1,0 +1,13 @@
+diff --git a/etc/bashrc b/etc/bashrc
+index 4a771c9..30f6162 100644
+--- a/etc/bashrc
++++ b/etc/bashrc
+@@ -76,7 +76,7 @@ export WM_PRECISION_OPTION=DP
+ 
+ #- Optimised, debug, profiling:
+ #    WM_COMPILE_OPTION = Opt | Debug | Prof
+-export WM_COMPILE_OPTION=Opt
++export WM_COMPILE_OPTION=Debug
+ 
+ #- MPI implementation:
+ #    WM_MPLIB = SYSTEMOPENMPI | OPENMPI | MPICH | MPICH-GM | HPMPI
