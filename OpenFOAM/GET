@@ -51,5 +51,5 @@ ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | so
 echo "
 /usr/lib/**:${ROOTDIR}/lib/**
 /usr/bin/simpleFoam:$SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam
-/openfoam/etc/controlDict:$SRCDIR/etc/controlDict
+/openfoam/etc/**:$SRCDIR/etc/**
 " > usr.manifest
