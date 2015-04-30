@@ -52,4 +52,5 @@ echo "
 /usr/lib/**:${ROOTDIR}/lib/**
 /usr/bin/simpleFoam:$SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam
 /openfoam/etc/**:$SRCDIR/etc/**
+/openfoam/case/**:$BASEDIR/case/**
 " > usr.manifest

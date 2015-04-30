@@ -1,0 +1,4 @@
+horc hh;
+verc vv;
+negverc -$verc;
+#inputMode merge
