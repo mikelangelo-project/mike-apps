@@ -1,0 +1,88 @@
+// The FOAM Project // File: decomposeParDict
+/*
+-------------------------------------------------------------------------------
+ =========         | dictionary
+ \\      /         | 
+  \\    /          | Name:   decomposeParDict
+   \\  /           | Family: FoamX configuration file
+    \\/            | 
+    F ield         | FOAM version: 2.1
+    O peration     | Product of Nabla Ltd.
+    A and          | 
+    M anipulation  | Email: Enquiries@Nabla.co.uk
+-------------------------------------------------------------------------------
+*/
+// FoamX Case Dictionary.
+
+FoamFile
+{
+    version         2.0;
+    format          ascii;
+
+    root            "";
+    case            "";
+    instance        "";
+    local           "";
+
+    class           dictionary;
+    object          decomposeParDict;
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+arguments       "" "";
+
+numberOfSubdomains 4;
+
+//method          hierarchical;
+//method          metis;
+//method          parMetis;
+method   scotch;
+
+scotchCoeffs
+{ 
+  processorWeights
+  (
+          1
+          1
+          1
+          1
+
+  );
+}
+
+simpleCoeffs
+{
+    n               (4 1 1);
+    delta           0.001;
+}
+
+hierarchicalCoeffs
+{
+    n               (2 2 1);
+    delta           0.001;
+    order           xyz;
+}
+
+manualCoeffs
+{
+    dataFile        "cellDecomposition";
+}
+
+metisCoeffs
+{
+    processorWeights
+    (
+	1
+	1
+	1
+	1
+	1
+	1
+	1
+	1
+     );
+}
+
+
+// ************************************************************************* //

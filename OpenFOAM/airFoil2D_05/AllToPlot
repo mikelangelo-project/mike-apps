@@ -1,0 +1,38 @@
+reset
+
+set terminal png
+
+set grid
+
+
+# *********** plot p,U,k,epsilon Initial residuals
+set output "initialResiduals1.png"
+set xlabel "time"
+set ylabel "initial residuals"
+#set key 3,4e-04
+#set size 1.3,1.3
+
+set log y
+
+plot [][1.5e-7:1] "logs/p_0" w l title 'p_0' ,\
+"logs/p_1" w l title 'p_1' ,\
+"logs/Ux_0" w l title 'Ux_0',\
+"logs/Uy_0" w l title 'Uy_0',\
+"logs/Uz_0" w l title 'Uz_0',\
+"logs/k_0" w l title 'k_0',\
+"logs/h_0" w l title 'h_0',\
+"logs/nuTilda_0" w l title 'nuTilda_0',\
+"logs/omega_0" w l title 'omega_0'
+
+#set nolog y
+
+# *********** plot forces
+set output "forces.png"
+set xlabel "time"
+set ylabel "forces residuals"
+alfa=0*3.1415/180
+plot [][1e-7:1]   "<paste postProcessing/forces/0/forceCoeffs1.dat postProcessing/forces/0/forceCoeffs3.dat" u 1:(abs(($3-$9)/$3)) w l title 'Cd' ,\
+                  "<paste postProcessing/forces/0/forceCoeffs1.dat postProcessing/forces/0/forceCoeffs3.dat" u 1:(abs(($4-$10)/$4)) w l title 'Cl' ,\
+                  "<paste postProcessing/forces/0/forceCoeffs1.dat postProcessing/forces/0/forceCoeffs3.dat" u 1:(abs(($2-$8)/$2)) w l title 'Cm'
+
+

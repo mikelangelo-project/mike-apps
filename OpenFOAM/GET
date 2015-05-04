@@ -47,10 +47,13 @@ cd $BASEDIR
 mkdir -p install/lib
 
 ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTDIR/lib
+# Also install libfieldFunctionObjects.so as it is not linked from the simpleFoam
+install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTDIR/lib
+install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTDIR/lib
 
 echo "
 /usr/lib/**:${ROOTDIR}/lib/**
 /usr/bin/simpleFoam:$SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam
 /openfoam/etc/**:$SRCDIR/etc/**
-/openfoam/case/**:$BASEDIR/case/**
+/openfoam/case/**:$BASEDIR/airFoil2D_05/**
 " > usr.manifest
