@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -x
+
+VERSION=0.5
+BASEDIR=$PWD
+ROOTDIR=$BASEDIR/install
+SRCDIR=$BASEDIR/sysbench-$VERSION
+
+# Check whether we need to download the tarbalj0j0
+if [ ! -f sysbench-$VERSION.zip ]; then
+    wget https://github.com/akopytov/sysbench/archive/$VERSION.zip -O sysbench-$VERSION.zip
+fi
+
+# Extract the target version
+unzip sysbench-$VERSION.zip
+
+cd $SRCDIR
+
+# Run autogen.sh to prepare ./configure script
+./autogen.sh
+
+# Now configure to build dynamic lib (pie). Also, skip mysql benchmarks for the time being.
+CFLAGS=-fpie CPPFLAGS=-fpie LDFLAGS=-pie ./configure --without-mysql 
+
+# Build
+make
+
+# Install libs
+cd $BASEDIR
+mkdir -p install/lib
+
+ldd $SRCDIR/sysbench/sysbench | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTDIR/lib
+
+echo "
+/usr/lib/**:${ROOTDIR}/lib/**
+/usr/bin/sysbench:$SRCDIR/sysbench/sysbench
+" > usr.manifest
