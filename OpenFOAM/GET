@@ -1,10 +1,8 @@
 #!/bin/sh
 
-set -x
-
 VERSION=2.3.1
 BASEDIR=$PWD
-ROOTDIR=$BASEDIR/install
+ROOTFS=$BASEDIR/ROOTFS
 SRCDIR=$BASEDIR/OpenFOAM-$VERSION
 
 # Check whether we need to download the tarbalj0j0
@@ -44,16 +42,25 @@ cd $SRCDIR/applications/solvers/incompressible/simpleFoam
 wmake
 
 cd $BASEDIR
-mkdir -p install/lib
+mkdir -p $ROOTFS/usr/lib
+mkdir -p $ROOTFS/usr/bin
+mkdir -p $ROOTFS/openfoam
 
-ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTDIR/lib
+cp $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam  $ROOTFS/usr/bin
+
+ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTFS/usr/lib
 # Also install libfieldFunctionObjects.so as it is not linked from the simpleFoam
-install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTDIR/lib
-install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTDIR/lib
+install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTFS/usr/lib
+install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
+
+# Copy the configuration files and scripts to the image.
+cp -r $SRCDIR/etc $ROOTFS/openfoam
+# Copy the case to be executed within the OSv instance (currently, this is hardcoded).
+cp -r $BASEDIR/airFoil2D_05 "$ROOTFS/openfoam/case"
 
 echo "
-/usr/lib/**:${ROOTDIR}/lib/**
-/usr/bin/simpleFoam:$SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam
-/openfoam/etc/**:$SRCDIR/etc/**
-/openfoam/case/**:$BASEDIR/airFoil2D_05/**
+/usr/bin/simpleFoam:${ROOTFS}/usr/bin/simpleFoam
+/usr/lib/**:${ROOTFS}/usr/lib/**
+/openfoam/etc/**:$ROOTFS/openfoam/etc/**
+/openfoam/case/**:$ROOTFS/openfoam/case/**
 " > usr.manifest
