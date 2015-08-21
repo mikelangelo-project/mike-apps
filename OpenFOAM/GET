@@ -57,9 +57,9 @@ install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
 cp -r $SRCDIR/etc $ROOTFS/openfoam
 
 echo "
-/usr/bin/simpleFoam:${ROOTFS}/usr/bin/simpleFoam
-/usr/lib/**:${ROOTFS}/usr/lib/**
-/openfoam/etc/**:$ROOTFS/openfoam/etc/**
+/usr/bin/simpleFoam: ${ROOTFS}/usr/bin/simpleFoam
+/usr/lib/**: ${ROOTFS}/usr/lib/**
+/openfoam/etc/**: $ROOTFS/openfoam/etc/**
 " > usr.manifest
 
 # Tu run the openfoam on OSv you need to upload the case explicitly with

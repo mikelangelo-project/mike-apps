@@ -95,7 +95,7 @@ def main(case_path, img_dst_path, osv_src_path):
 	manifest = os.path.join( os.path.dirname(os.path.realpath(sys.argv[0])), "upload-case.manifest")
 	with open(manifest, "w") as f:
 		f.write("[manifest]\n")
-		f.write("/openfoam/case/**:" + case_path + "/**")
+		f.write("/openfoam/case/**: " + case_path + "/**")
 
 	# Copy image
 	if not img_src_path == img_dst_path:
