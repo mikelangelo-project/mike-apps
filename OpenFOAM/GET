@@ -16,6 +16,10 @@ tar zxf OpenFOAM-$VERSION.tgz
 #cd $SRCDIR
 #patch -p1 < $BASEDIR/patches/debug.patch
 
+# OpenFOAM should not call exit() - in OSv exit shutdowns whole VM
+cd $SRCDIR
+patch -p1 < $BASEDIR/patches/exit.patch
+
 # Set OpenFOAM's environment variables required to build the package. You should change this to cshrc if
 # that's the shell you are using.
 export FOAM_INST_DIR=$BASEDIR

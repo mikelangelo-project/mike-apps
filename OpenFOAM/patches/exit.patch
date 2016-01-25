@@ -1,0 +1,31 @@
+From 4761e2fb3012d98968ce786900d6a41540f17bfb Mon Sep 17 00:00:00 2001
+From: Justin Cinkelj <justin.cinkelj@xlab.si>
+Date: Thu, 21 Jan 2016 16:44:49 +0100
+Subject: [PATCH] OpenFOAM workers should not call exit (when running on OSv).
+
+exit in OSv shutdowns whole VM. But we need to wait until mpirun and orted
+are both able to terminate as well. orted calls exit (orted_main.c, in
+orte_deamon) once done - we are lucky it is at just the right place.
+
+Signed-off-by: Justin Cinkelj <justin.cinkelj@xlab.si>
+---
+ src/Pstream/mpi/UPstream.C | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/Pstream/mpi/UPstream.C b/src/Pstream/mpi/UPstream.C
+index 4277959..d964d6b 100644
+--- a/src/Pstream/mpi/UPstream.C
++++ b/src/Pstream/mpi/UPstream.C
+@@ -157,7 +157,8 @@ void Foam::UPstream::exit(int errnum)
+     if (errnum == 0)
+     {
+         MPI_Finalize();
+-        ::exit(errnum);
++        // In OSv, exit() would shutdown whole VM
++        // ::exit(errnum);
+     }
+     else
+     {
+-- 
+2.5.0
+
