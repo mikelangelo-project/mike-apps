@@ -5,6 +5,9 @@ BASEDIR=$PWD
 ROOTFS=$BASEDIR/ROOTFS
 SRCDIR=$BASEDIR/OpenFOAM-$VERSION
 
+# enable parallel build
+export MAKEFLAGS="-j `nproc`"
+
 # Check whether we need to download the tarbalj0j0
 if [ ! -f OpenFOAM-$VERSION.tgz ]; then
     wget http://downloads.sourceforge.net/foam/OpenFOAM-$VERSION.tgz
