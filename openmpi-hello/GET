@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# exit on error
+set -e
+
+VERSION=master  # 27978837
+BASEDIR="$PWD"
+SRCDIR="$BASEDIR/ompi-hello"
+
+# enable parallel build
+export MAKEFLAGS="-j `nproc`"
+
+if [ ! -d openmpi-hello ]; then
+    # Checkout code
+    git clone --depth 1 --branch $VERSION https://gitlab.xlab.si/mikelangelo/ompi-hello.git
+    cd ompi-hello
+    git checkout -b ompi-osv
+    cd "$BASEDIR"
+fi
+
+# OpenMPI should be already installed - header files, dev libs.
+(cd $SRCDIR && make all)
+
+echo "
+/usr/lib/mpi_hello.so:              ${SRCDIR}/mpi_hello.so
+" > "$BASEDIR/usr.manifest"
