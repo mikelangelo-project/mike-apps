@@ -10,10 +10,10 @@ SRCDIR="$BASEDIR/ompi-hello"
 # enable parallel build
 export MAKEFLAGS="-j `nproc`"
 
-if [ ! -d openmpi-hello ]; then
+if [ ! -d "$SRCDIR" ]; then
     # Checkout code
     git clone --depth 1 --branch $VERSION https://gitlab.xlab.si/mikelangelo/ompi-hello.git
-    cd ompi-hello
+    cd "$SRCDIR"
     git checkout -b ompi-osv
     cd "$BASEDIR"
 fi
