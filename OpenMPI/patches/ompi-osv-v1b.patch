@@ -1,0 +1,802 @@
+From 111b07853fc134d88b3708d4cefa4502edf299b0 Mon Sep 17 00:00:00 2001
+From: Justin Cinkelj <justin.cinkelj@xlab.si>
+Date: Mon, 25 Jan 2016 15:32:46 +0100
+Subject: [PATCH 1/2] Port to OSv
+
+master/4e8ff39a7 v1.01.2a2 ... features/ompi-osv-v1b 72f63c2d
+
+Load and relocate orted.so immediately.
+OSv execve runs app in new ELF namespaces.
+
+Avoid closing file descriptors, they are shared with orted.so.
+IOF setup is skipped - is that bad ?
+
+vader, fix calling munmap with invalid address.
+If component->my_segment is returned by opal_shmem_segment_attach, then
+it even isn't page aligned. It can be deallocated only with
+opal_shmem_segment_detach/unlink.
+But even before that, the shmem_mmap module already does segment_detach, so
+check first if segment is still valid.
+
+Adopt shmem_mamp for OSv. A bit hackish.
+Tag segments with thread ID instead of PID.
+munmap is called only by the creator - I hope the creator is also
+the last user of mmaped area.
+I don't know why other threads cannot call mmap over the same file, to get
+their own address.
+
+Use osv_waittid and event notification to detect worker termination.
+orted_main.c now directly calls orte_wait.c do_waitall, and
+odls_default_module.c uses osv_child_done_fd from orted_main.c.
+That could be nicer.
+
+Signed-off-by: Justin Cinkelj <justin.cinkelj@xlab.si>
+---
+ make-orted-so.sh                                   | 23 ++++++++
+ ompi/mca/btl/vader/btl_vader_component.c           | 23 +++++++-
+ opal/mca/shmem/mmap/shmem_mmap_module.c            | 68 +++++++++++++++++----
+ opal/runtime/Makefile.am                           |  3 +-
+ opal/runtime/opal_osv_support.c                    | 40 +++++++++++++
+ opal/runtime/opal_osv_support.h                    | 18 ++++++
+ opal/util/output.c                                 |  7 ++-
+ orte/mca/iof/base/iof_base_setup.c                 | 22 +++++--
+ orte/mca/odls/base/odls_base_default_fns.c         |  2 +-
+ orte/mca/odls/default/odls_default_module.c        | 69 +++++++++++++++++-----
+ orte/orted/orted_main.c                            | 39 ++++++++++++
+ orte/runtime/data_type_support/orte_dt_print_fns.c |  4 +-
+ orte/runtime/orte_wait.c                           | 17 +++++-
+ orte/tools/orted/orted.c                           |  5 ++
+ 14 files changed, 300 insertions(+), 40 deletions(-)
+ create mode 100755 make-orted-so.sh
+ create mode 100644 opal/runtime/opal_osv_support.c
+ create mode 100644 opal/runtime/opal_osv_support.h
+
+diff --git a/make-orted-so.sh b/make-orted-so.sh
+new file mode 100755
+index 0000000..fc9aec8
+--- /dev/null
++++ b/make-orted-so.sh
+@@ -0,0 +1,23 @@
++#!/bin/bash
++
++# cd build
++# cd orte/tools/orted
++# make V=1 orted
++#
++#depbase=`echo orted.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
++#	gcc -std=gnu99 -DHAVE_CONFIG_H -I. -I../../../../orte/tools/orted -I../../../opal/include -I../../../orte/include -I../../../ompi/include -I../../../oshmem/include -I../../../opal/mca/hwloc/hwloc191/hwloc/include/private/autogen -I../../../opal/mca/hwloc/hwloc191/hwloc/include/hwloc/autogen   -I../../../.. -I../../.. -I../../../../opal/include -I../../../../orte/include -I../../../../ompi/include -I../../../../oshmem/include   -I/home/justin_cinkelj/devel/mikelangelo/ompi-release/opal/mca/event/libevent2021/libevent -I/home/justin_cinkelj/devel/mikelangelo/ompi-release/opal/mca/event/libevent2021/libevent/include -I/home/justin_cinkelj/devel/mikelangelo/ompi-release/build-osv/opal/mca/event/libevent2021/libevent/include  -fPIC -DPIC -g -finline-functions -fno-strict-aliasing -pthread -MT orted.o -MD -MP -MF $depbase.Tpo -c -o orted.o ../../../../orte/tools/orted/orted.c &&\
++#	mv -f $depbase.Tpo $depbase.Po
++#/bin/bash ../../../libtool  --tag=CC   --mode=link gcc -std=gnu99  -fPIC -DPIC -g -finline-functions -fno-strict-aliasing -pthread   -o orted orted.o ../../../orte/libopen-rte.la ../../../opal/libopen-pal.la -lrt -lm -lutil
++#libtool: link: gcc -std=gnu99 -fPIC -DPIC -g -finline-functions -fno-strict-aliasing -pthread -o .libs/orted orted.o  ../../../orte/.libs/libopen-rte.so ../../../opal/.libs/libopen-pal.so -lrt -lm -lutil -pthread
++
++
++#cd build-osv/orte/tools/orted/
++pushd           orte/tools/orted/
++
++rm orted orted.o orted.so .libs/orted .libs/orted.so
++make orted
++gcc -std=gnu99 -fPIC -DPIC -g -finline-functions -fno-strict-aliasing -pthread -o .libs/orted.so orted.o  ../../../orte/.libs/libopen-rte.so ../../../opal/.libs/libopen-pal.so -lrt -lm -lutil -pthread  -shared -fPIC
++
++popd
++
++ls -la orte/tools/orted/.libs/orted.so
+diff --git a/ompi/mca/btl/vader/btl_vader_component.c b/ompi/mca/btl/vader/btl_vader_component.c
+index 8ab464f..08ab1c8 100644
+--- a/ompi/mca/btl/vader/btl_vader_component.c
++++ b/ompi/mca/btl/vader/btl_vader_component.c
+@@ -305,7 +305,28 @@ static int mca_btl_vader_component_close(void)
+     OBJ_DESTRUCT(&mca_btl_vader_component.pending_fragments);
+
+     if (NULL != mca_btl_vader_component.my_segment) {
+-        munmap (mca_btl_vader_component.my_segment, mca_btl_vader_component.segment_size);
++        if (MCA_BTL_VADER_XPMEM != mca_btl_vader_component.single_copy_mechanism) {
++            /* Segment was allocated and attached via opal_shmem_segment_create
++             * and opal_shmem_segment_attach. Do not call munmap directly, use
++             * opal_shmem_segment_dettach, opal_shmem_unlink.
++             *
++             * The shmem_mmap module cleanup might already dettach that segment.
++             * So check first if it is still valid. Otherwise unlink will fail -
++             * filename is "", and errno says something like "directory cannot be...".
++             */
++            BTL_VERBOSE(("VADER opal_shmem_segment_detach seg_ds=%p id=%d addr=%p \n",
++                &mca_btl_vader_component.seg_ds,
++                mca_btl_vader_component.seg_ds.seg_id,
++                mca_btl_vader_component.my_segment
++            ));
++            if (OPAL_SHMEM_DS_ID_INVALID != mca_btl_vader_component.seg_ds.seg_id) {
++                opal_shmem_segment_detach(&mca_btl_vader_component.seg_ds);
++                opal_shmem_unlink(&mca_btl_vader_component.seg_ds); // might still fail, but only once??
++            }
++        }
++        else {
++            munmap (mca_btl_vader_component.my_segment, mca_btl_vader_component.segment_size);
++        }
+     }
+
+ #if OMPI_BTL_VADER_HAVE_KNEM
+diff --git a/opal/mca/shmem/mmap/shmem_mmap_module.c b/opal/mca/shmem/mmap/shmem_mmap_module.c
+index 6a0538f..9261fcb 100644
+--- a/opal/mca/shmem/mmap/shmem_mmap_module.c
++++ b/opal/mca/shmem/mmap/shmem_mmap_module.c
+@@ -58,6 +58,8 @@
+ #include "opal/mca/shmem/shmem.h"
+ #include "opal/mca/shmem/base/base.h"
+
++#include "opal/runtime/opal_osv_support.h"
++
+ #include "shmem_mmap.h"
+
+ /* for tons of debug output: -mca shmem_base_verbose 70 */
+@@ -124,6 +126,7 @@ shmem_ds_reset(opal_shmem_ds_t *ds_buf)
+          ds_buf->seg_id, (unsigned long)ds_buf->seg_size, ds_buf->seg_name)
+     );
+
++    /* seg_cpid 0 is reserved value, but in OSv, 0 is also the only PID */
+     ds_buf->seg_cpid = 0;
+     OPAL_SHMEM_DS_RESET_FLAGS(ds_buf);
+     ds_buf->seg_id = OPAL_SHMEM_DS_ID_INVALID;
+@@ -224,7 +227,7 @@ get_uniq_file_name(const char *base_path, const char *hash_key)
+         return NULL;
+     }
+
+-    my_pid = getpid();
++    my_pid = opal_getpid();
+     opal_srand(&rand_buff,((uint32_t)(time(NULL) + my_pid)));
+     rand_num = opal_rand(&rand_buff) % 1024;
+     str_hash = sdbm_hash((unsigned char *)hash_key);
+@@ -243,7 +246,7 @@ segment_create(opal_shmem_ds_t *ds_buf,
+ {
+     int rc = OPAL_SUCCESS;
+     char *real_file_name = NULL;
+-    pid_t my_pid = getpid();
++    pid_t my_pid = opal_getpid();
+     /* the real size of the shared memory segment.  this includes enough space
+      * to store our segment header.
+      */
+@@ -415,9 +418,21 @@ out:
+ static void *
+ segment_attach(opal_shmem_ds_t *ds_buf)
+ {
+-    pid_t my_pid = getpid();
+-
+-    if (my_pid != ds_buf->seg_cpid) {
++    pid_t my_pid = opal_getpid();
++
++    bool is_osv = opal_is_osv();
++    if (my_pid != ds_buf->seg_cpid &&
++        is_osv == false ) {
++        /* On linux - call open + mmap if we are not creator.
++         *
++         * On OSv - additional mmap is not needed. But I'm not sure, why it
++         * doesn't work if the not-creator thread calls mmap. Each thread would
++         * access same file, only using different address. Nothing special.
++         * But MPI_init than never finishes.
++         *
++         * Maybe it has to do something with the rest of vader code - memcpy,
++         * memmove, different address, but actually same memory.
++         */
+         if (-1 == (ds_buf->seg_id = open(ds_buf->seg_name, O_RDWR))) {
+             int err = errno;
+             char hn[MAXHOSTNAMELEN];
+@@ -488,15 +503,42 @@ segment_detach(opal_shmem_ds_t *ds_buf)
+          ds_buf->seg_id, (unsigned long)ds_buf->seg_size, ds_buf->seg_name)
+     );
+
+-    if (0 != munmap((void *)ds_buf->seg_base_addr, ds_buf->seg_size)) {
+-        int err = errno;
+-        char hn[MAXHOSTNAMELEN];
+-        gethostname(hn, MAXHOSTNAMELEN - 1);
+-        hn[MAXHOSTNAMELEN - 1] = '\0';
+-        opal_show_help("help-opal-shmem-mmap.txt", "sys call fail", 1, hn,
+-                       "munmap(2)", "", strerror(err), err);
+-        rc = OPAL_ERROR;
++    pid_t my_pid = opal_getpid();
++    bool is_osv = opal_is_osv();
++    if (is_osv == false ||
++        my_pid == ds_buf->seg_cpid) {
++        /*
++         * On linux - always call munmap.
++         *
++         * On OSv - only the creator will destroy allocated memory (it is considered
++         * "owner"). But is it possible that other threads are still using the same
++         * address? Eg thread th-1 creates segment, it is used in th-1 and th-2.
++         * th-1 finnishes processing, starts closing/detaching. th-2 might still
++         * need to do some work - say collect data from othre nodes, possibly
++         * from th-1 too.
++         */
++        if (0 != munmap((void *)ds_buf->seg_base_addr, ds_buf->seg_size)) {
++            int err = errno;
++            char hn[MAXHOSTNAMELEN];
++            gethostname(hn, MAXHOSTNAMELEN - 1);
++            hn[MAXHOSTNAMELEN - 1] = '\0';
++            opal_show_help("help-opal-shmem-mmap.txt", "sys call fail", 1, hn,
++                           "munmap(2)", "", strerror(err), err);
++            rc = OPAL_ERROR;
++        }
++    }
++    else {
++        OPAL_OUTPUT_VERBOSE(
++            (70*0, opal_shmem_base_framework.framework_output,
++             "%s: %s: detaching SKIP (my_pid!=cpid) "
++             "ds_buf=%p base_addr=%p (id: %d, size: %lu, name: %s)\n",
++             mca_shmem_mmap_component.super.base_version.mca_type_name,
++             mca_shmem_mmap_component.super.base_version.mca_component_name,
++             ds_buf, ds_buf->seg_base_addr,
++             ds_buf->seg_id, (unsigned long)ds_buf->seg_size, ds_buf->seg_name)
++        );
+     }
++
+     /* reset the contents of the opal_shmem_ds_t associated with this
+      * shared memory segment.
+      */
+diff --git a/opal/runtime/Makefile.am b/opal/runtime/Makefile.am
+index 4da98ac..4068269 100644
+--- a/opal/runtime/Makefile.am
++++ b/opal/runtime/Makefile.am
+@@ -41,4 +41,5 @@ libopen_pal_la_SOURCES += \
+         runtime/opal_init.c \
+         runtime/opal_params.c \
+         runtime/opal_cr.c \
+-        runtime/opal_info_support.c
++        runtime/opal_info_support.c \
++        runtime/opal_osv_support.c
+diff --git a/opal/runtime/opal_osv_support.c b/opal/runtime/opal_osv_support.c
+new file mode 100644
+index 0000000..89410e3
+--- /dev/null
++++ b/opal/runtime/opal_osv_support.c
+@@ -0,0 +1,40 @@
++/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
++
++#include <stdlib.h>
++#include <unistd.h>
++#include <sys/syscall.h>
++#include "opal/runtime/opal_osv_support.h"
++
++/*
++ * Return 1 if inside OSv, 0 otherwise.
++ * */
++int opal_is_osv() {
++    static bool first_call=true, is_osv;
++    if(first_call) {
++        char *osv_ver;
++        osv_ver = getenv("OSV_VERSION");
++        is_osv = osv_ver != NULL;
++        first_call = false;
++    }
++    return is_osv;
++}
++
++/**
++ * Replacement for getpid().
++ * In Linux, return usual process ID.
++ * In OSv, return thread ID instead of process ID.
++ */
++pid_t opal_getpid()
++{
++    pid_t id;
++    if(opal_is_osv()) {
++        id = syscall(__NR_gettid);
++    }
++    else {
++        id = getpid();
++    }
++    return id;
++}
++
++
++
+diff --git a/opal/runtime/opal_osv_support.h b/opal/runtime/opal_osv_support.h
+new file mode 100644
+index 0000000..c652cbe
+--- /dev/null
++++ b/opal/runtime/opal_osv_support.h
+@@ -0,0 +1,18 @@
++#ifndef OPAL_OSV_SUPPORT_H
++#define OPAL_OSV_SUPPORT_H
++
++#include "opal_config.h"
++
++// Replacement for waitpid.
++long osv_waittid(long tid, int *status, int options) __attribute__((weak));
++// Replacement for fork+exec
++long osv_execve(const char *path, char *const argv[], char *const envp[], long *thread_id, int notification_fd) __attribute__((weak));
++
++BEGIN_C_DECLS
++
++OPAL_DECLSPEC int opal_is_osv();
++OPAL_DECLSPEC pid_t opal_getpid();
++
++END_C_DECLS
++
++#endif
+diff --git a/opal/util/output.c b/opal/util/output.c
+index 8542a03..c51dc01 100644
+--- a/opal/util/output.c
++++ b/opal/util/output.c
+@@ -41,6 +41,7 @@
+ #include "opal/util/output.h"
+ #include "opal/threads/mutex.h"
+ #include "opal/constants.h"
++#include "opal/runtime/opal_osv_support.h"
+
+ /*
+  * Private data
+@@ -184,7 +185,7 @@ bool opal_output_init(void)
+     }
+     gethostname(hostname, sizeof(hostname));
+     hostname[sizeof(hostname)-1] = '\0';
+-    asprintf(&verbose.lds_prefix, "[%s:%05d] ", hostname, getpid());
++    asprintf(&verbose.lds_prefix, "[%s:%05d] ", hostname, opal_getpid());
+
+     for (i = 0; i < OPAL_OUTPUT_MAX_STREAMS; ++i) {
+         info[i].ldi_used = false;
+@@ -205,7 +206,7 @@ bool opal_output_init(void)
+
+     /* Set some defaults */
+
+-    asprintf(&output_prefix, "output-pid%d-", getpid());
++    asprintf(&output_prefix, "output-pid%d-", opal_getpid());
+     output_dir = strdup(opal_tmp_directory());
+
+     /* Open the default verbose stream */
+@@ -274,7 +275,7 @@ void opal_output_reopen_all(void)
+         free(verbose.lds_prefix);
+         verbose.lds_prefix = NULL;
+     }
+-    asprintf(&verbose.lds_prefix, "[%s:%05d] ", hostname, getpid());
++    asprintf(&verbose.lds_prefix, "[%s:%05d] ", hostname, opal_getpid());
+ #if 0
+     int i;
+     opal_output_stream_t lds;
+diff --git a/orte/mca/iof/base/iof_base_setup.c b/orte/mca/iof/base/iof_base_setup.c
+index d12410d..3f581a1 100644
+--- a/orte/mca/iof/base/iof_base_setup.c
++++ b/orte/mca/iof/base/iof_base_setup.c
+@@ -58,6 +58,7 @@
+ #include "opal/util/opal_pty.h"
+ #include "opal/util/opal_environ.h"
+ #include "opal/util/output.h"
++#include "opal/runtime/opal_osv_support.h"
+
+ #include "orte/mca/errmgr/errmgr.h"
+ #include "orte/util/name_fns.h"
+@@ -122,7 +123,13 @@ orte_iof_base_setup_child(orte_iof_base_io_conf_t *opts, char ***env)
+ {
+     int ret;
+     char *str;
++    fprintf(stderr, "TTRT orte_iof_base_setup_child \n");
++    if(opal_is_osv()) {
++        fprintf(stderr, "TTRT orte_iof_base_setup_child OSv no-op \n");
++        return ORTE_SUCCESS;
++    }
+
++    /* TODO check OSv */
+     close(opts->p_stdin[1]);
+     close(opts->p_stdout[0]);
+     close(opts->p_stderr[0]);
+@@ -149,19 +156,19 @@ orte_iof_base_setup_child(orte_iof_base_io_conf_t *opts, char ***env)
+         }
+         ret = dup2(opts->p_stdout[1], fileno(stdout));
+         if (ret < 0) return ORTE_ERR_PIPE_SETUP_FAILURE;
+-        close(opts->p_stdout[1]);
++        close(opts->p_stdout[1]); /* TODO check OSv */
+     } else {
+         if(opts->p_stdout[1] != fileno(stdout)) {
+             ret = dup2(opts->p_stdout[1], fileno(stdout));
+             if (ret < 0) return ORTE_ERR_PIPE_SETUP_FAILURE;
+-            close(opts->p_stdout[1]);
++            close(opts->p_stdout[1]); /* TODO check OSv */
+         }
+     }
+     if (opts->connect_stdin) {
+         if(opts->p_stdin[0] != fileno(stdin)) {
+             ret = dup2(opts->p_stdin[0], fileno(stdin));
+             if (ret < 0) return ORTE_ERR_PIPE_SETUP_FAILURE;
+-            close(opts->p_stdin[0]);
++            close(opts->p_stdin[0]); /* TODO check OSv */
+         }
+     } else {
+         int fd;
+@@ -200,6 +207,11 @@ orte_iof_base_setup_parent(const orte_process_name_t* name,
+ {
+     int ret;
+
++    fprintf(stderr, "TTRT orte_iof_base_setup_parent \n");
++    /*if(opal_is_osv()) {
++        fprintf(stderr, "TTRT orte_iof_base_setup_parent OSv no-op \n");
++        return ORTE_SUCCESS;
++    }*/
+     close(opts->p_stdin[0]);
+     close(opts->p_stdout[1]);
+     close(opts->p_stderr[1]);
+@@ -214,7 +226,9 @@ orte_iof_base_setup_parent(const orte_process_name_t* name,
+             return ret;
+         }
+     } else {
+-        close(opts->p_stdin[1]);
++        if(!opal_is_osv()) {
++            close(opts->p_stdin[1]);
++        }
+     }
+
+     /* connect read ends to IOF */
+diff --git a/orte/mca/odls/base/odls_base_default_fns.c b/orte/mca/odls/base/odls_base_default_fns.c
+index 312e4be..174025d 100644
+--- a/orte/mca/odls/base/odls_base_default_fns.c
++++ b/orte/mca/odls/base/odls_base_default_fns.c
+@@ -16,7 +16,7 @@
+  * Copyright (c) 2011-2013 Cisco Systems, Inc.  All rights reserved.
+  * Copyright (c) 2013-2014 Intel, Inc.  All rights reserved.
+  * $COPYRIGHT$
+- *
++ *
+  * Additional copyrights may follow
+  *
+  * $HEADER$
+diff --git a/orte/mca/odls/default/odls_default_module.c b/orte/mca/odls/default/odls_default_module.c
+index 4a41504..4d3586c 100644
+--- a/orte/mca/odls/default/odls_default_module.c
++++ b/orte/mca/odls/default/odls_default_module.c
+@@ -67,6 +67,7 @@
+ #include "orte_config.h"
+ #include "orte/constants.h"
+ #include "orte/types.h"
++#include "opal/runtime/opal_osv_support.h"
+
+ #ifdef HAVE_STRING_H
+ #include <string.h>
+@@ -164,6 +165,8 @@ static int orte_odls_default_kill_local_procs(opal_pointer_array_t *procs);
+ static int orte_odls_default_signal_local_procs(const orte_process_name_t *proc, int32_t signal);
+ static int orte_odls_default_restart_proc(orte_proc_t *child);
+
++extern int osv_child_done_fd;
++
+ /*
+  * Explicitly declared functions so that we can get the noreturn
+  * attribute registered with the compiler.
+@@ -446,7 +449,9 @@ static int do_child(orte_app_context_t* context,
+         /* Set a new process group for this child, so that a
+            SIGSTOP can be sent to it without being sent to the
+            orted. */
+-        setpgid(0, 0);
++        if(!opal_is_osv()) {
++            setpgid(0, 0);
++        }
+     }
+
+     /* Setup the pipe to be close-on-exec */
+@@ -680,11 +685,13 @@ static int do_child(orte_app_context_t* context,
+     /* close all open file descriptors w/ exception of stdin/stdout/stderr,
+        the pipe used for the IOF INTERNAL messages, and the pipe up to
+        the parent. */
+-    if (ORTE_SUCCESS != close_open_file_descriptors(write_fd, opts)) {
+-        // close *all* file descriptors -- slow
+-        for(fd=3; fd<fdmax; fd++) {
+-            if (fd != opts.p_internal[1] && fd != write_fd) {
+-                close(fd);
++    if(!opal_is_osv()) {
++        if (ORTE_SUCCESS != close_open_file_descriptors(write_fd, opts)) {
++            // close *all* file descriptors -- slow
++            for(fd=3; fd<fdmax; fd++) {
++                if (fd != opts.p_internal[1] && fd != write_fd) {
++                    close(fd);
++                }
+             }
+         }
+     }
+@@ -724,15 +731,34 @@ static int do_child(orte_app_context_t* context,
+             opal_output(0, "%s\tARGV[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, context->argv[jout]);
+         }
+         for (jout=0; NULL != environ_copy[jout]; jout++) {
+-            opal_output(0, "%s\tENVIRON[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, environ_copy[jout]);
++            //opal_output(0, "%s\tENVIRON[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, environ_copy[jout]);
+         }
+     }
+
+-    execve(context->app, context->argv, environ_copy);
+-    send_error_show_help(write_fd, 1,
+-                         "help-orte-odls-default.txt", "execve error",
+-                         orte_process_info.nodename, context->app, strerror(errno));
+-    /* Does not return */
++    if(opal_is_osv()) {
++        int ret;
++        long thread_id = 0;
++        ret  = osv_execve(context->app, context->argv, environ_copy, &thread_id, osv_child_done_fd);
++        fprintf(stderr, "TTRT odls_default_module.c:%d osv_execve ret=%d, thread_id=%ld, child=%p fd=%d \n", __LINE__, ret, thread_id, child, osv_child_done_fd);
++        if(ret != 0) {
++            send_error_show_help(write_fd, 1,
++                                 "help-orte-odls-default.txt", "execve error",
++                                 orte_process_info.nodename, context->app, strerror(errno));
++        }
++        if (NULL != child) {
++            child->pid = (int)thread_id;
++        }
++        close(write_fd);
++        // Does return in OSv
++    }
++    else {
++        execve(context->app, context->argv, environ_copy);
++        send_error_show_help(write_fd, 1,
++                             "help-orte-odls-default.txt", "execve error",
++                             orte_process_info.nodename, context->app, strerror(errno));
++        /* Does not return */
++    }
++    // Does return in OSv
+ }
+
+
+@@ -919,7 +945,13 @@ static int odls_default_fork_local_proc(orte_app_context_t* context,
+     }
+
+     /* Fork off the child */
+-    pid = fork();
++    if (opal_is_osv()) {
++        /* positive value to indicate that we are parent */
++        pid = 111;
++    }
++    else {
++        pid = fork();
++    }
+     if (NULL != child) {
+         child->pid = pid;
+     }
+@@ -934,6 +966,7 @@ static int odls_default_fork_local_proc(orte_app_context_t* context,
+     }
+
+     if (pid == 0) {
++        /* we are child, not on OSv */
+ 	close(p[0]);
+ #if HAVE_SETPGID
+         setpgid(0, 0);
+@@ -941,8 +974,16 @@ static int odls_default_fork_local_proc(orte_app_context_t* context,
+         do_child(context, child, environ_copy, jobdat, p[1], opts);
+         /* Does not return */
+     }
++    if (opal_is_osv()) {
++        /* we are parent, on OSv - run child now */
++        /* do_child will store child thread TID into child->pid */
++        do_child(context, child, environ_copy, jobdat, p[1], opts);
++        /* Does return */
++    }
+
+-    close(p[1]);
++    if (!opal_is_osv()) {
++        close(p[1]);
++    }
+     return do_parent(context, child, environ_copy, jobdat, p[0], opts);
+ }
+
+diff --git a/orte/orted/orted_main.c b/orte/orted/orted_main.c
+index 5ca7aab..f6e7732 100644
+--- a/orte/orted/orted_main.c
++++ b/orte/orted/orted_main.c
+@@ -31,6 +31,7 @@
+ #endif
+
+ #include <stdio.h>
++#include <sys/eventfd.h>
+ #include <ctype.h>
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+@@ -64,6 +65,7 @@
+ #include "opal/util/daemon_init.h"
+ #include "opal/dss/dss.h"
+ #include "opal/mca/hwloc/hwloc.h"
++#include "opal/runtime/opal_osv_support.h"
+
+ #include "orte/util/show_help.h"
+ #include "orte/util/proc_info.h"
+@@ -106,6 +108,10 @@ static opal_event_t *pipe_handler;
+ static void shutdown_callback(int fd, short flags, void *arg);
+ static void pipe_closed(int fd, short flags, void *arg);
+
++static opal_event_t *osv_child_handler;
++static void osv_child_terminated (int fd, short flags, void *arg);
++int osv_child_done_fd;
++
+ static char *orte_parent_uri;
+
+ static struct {
+@@ -247,6 +253,7 @@ int orte_daemon(int argc, char *argv[])
+     memset(&orted_globals, 0, sizeof(orted_globals));
+     /* initialize the singleton died pipe to an illegal value so we can detect it was set */
+     orted_globals.singleton_died_pipe = -1;
++    osv_child_done_fd = -1;
+     /* init the failure orted vpid to an invalid value */
+     orted_globals.fail = ORTE_VPID_INVALID;
+
+@@ -883,8 +890,29 @@ int orte_daemon(int argc, char *argv[])
+     }
+     ret = ORTE_SUCCESS;
+
++    /* OSv notification about thread termination */
++    if(osv_child_done_fd == -1) {
++        osv_child_done_fd = eventfd(0, 0); // EFD_NONBLOCK
++        fprintf(stderr, "orted_main.c:%d osv_child_done_fd=%d\n", __LINE__, osv_child_done_fd);
++    }
++    osv_child_handler = (opal_event_t*)malloc(sizeof(opal_event_t));
++    opal_event_set(orte_event_base, osv_child_handler,
++                   osv_child_done_fd,
++                   EV_READ | EV_PERSIST,
++                   osv_child_terminated,
++                   osv_child_handler);
++    opal_event_add(osv_child_handler, NULL);
++
+     /* loop the event lib until an exit event is detected */
+     while (orte_event_base_active) {
++        /* On Linux, on child process termination, event is triggered / SIGCHLD is sent.
++         * Callback odls_base_default_wait_local_proc is registered in orte_wait_cb.
++         * Then orte_wait_signal_callback (registered in orte_wait_init) does do_waitall,
++         * to check which child died.
++         *
++         * On OSv, we lack signals. Instead, notification is sent by writing to
++         * osv_child_done_fd. That triggers osv_child_handler, which calls do_waitall().
++         */
+         opal_event_loop(orte_event_base, OPAL_EVLOOP_ONCE);
+     }
+
+@@ -904,6 +932,17 @@ int orte_daemon(int argc, char *argv[])
+     exit(orte_exit_status);
+ }
+
++void orte_wait_signal_callback_osv();
++static void osv_child_terminated (int fd, short flags, void *arg)
++{
++    opal_event_t *ev = (opal_event_t*)arg;
++
++    // free only if that would be the very lest child thread, just before orted termination.
++    // opal_event_free(ev);
++    //fprintf(stderr, "osv_child_terminated:%d called\n", __LINE__);
++    orte_wait_signal_callback_osv();
++}
++
+ static void pipe_closed(int fd, short flags, void *arg)
+ {
+     opal_event_t *ev = (opal_event_t*)arg;
+diff --git a/orte/runtime/data_type_support/orte_dt_print_fns.c b/orte/runtime/data_type_support/orte_dt_print_fns.c
+index 618ea36..5791f21 100644
+--- a/orte/runtime/data_type_support/orte_dt_print_fns.c
++++ b/orte/runtime/data_type_support/orte_dt_print_fns.c
+@@ -556,12 +556,12 @@ int orte_dt_print_app_context(char **output, char *prefix, orte_app_context_t *s
+         tmp = tmp2;
+     }
+
+-    count = opal_argv_count(src->env);
++    /* count = opal_argv_count(src->env);
+     for (i=0; i < count; i++) {
+         asprintf(&tmp2, "%s\n%s\tEnv[%lu]: %s", tmp, pfx2, (unsigned long)i, src->env[i]);
+         free(tmp);
+         tmp = tmp2;
+-    }
++    } */
+
+     asprintf(&tmp2, "%s\n%s\tWorking dir: %s (user: %d session-dir: %d)\n%s\tPrefix: %s\n%s\tHostfile: %s\tAdd-Hostfile: %s", tmp,
+              pfx2, (NULL == src->cwd) ? "NULL" : src->cwd, (int) src->user_specified_cwd, (int) src->set_cwd_to_session_dir,
+diff --git a/orte/runtime/orte_wait.c b/orte/runtime/orte_wait.c
+index a71f994..6e0068c 100644
+--- a/orte/runtime/orte_wait.c
++++ b/orte/runtime/orte_wait.c
+@@ -57,6 +57,7 @@
+ #include "opal/threads/mutex.h"
+ #include "opal/threads/condition.h"
+ #include "opal/sys/atomic.h"
++#include "opal/runtime/opal_osv_support.h"
+
+ #include "orte/constants.h"
+ #include "orte/mca/errmgr/errmgr.h"
+@@ -422,6 +423,14 @@ orte_wait_signal_callback(int fd, short event, void *arg)
+     OPAL_THREAD_UNLOCK(&mutex);
+ }
+
++/* Equivalent of orte_wait_signal_callback, for OSv */
++void
++orte_wait_signal_callback_osv()
++{
++    OPAL_THREAD_LOCK(&mutex);
++    do_waitall(0);
++    OPAL_THREAD_UNLOCK(&mutex);
++}
+
+ int
+ orte_wait_cb_disable()
+@@ -535,7 +544,13 @@ do_waitall(int options)
+     if (!cb_enabled) return;
+     while (1) {
+         int status;
+-        pid_t ret = waitpid(-1, &status, WNOHANG);
++        pid_t ret;
++        if(!opal_is_osv()) {
++            ret = waitpid(-1, &status, WNOHANG);
++        }
++        else {
++            ret = osv_waittid(-1, &status, WNOHANG);
++        }
+         pending_pids_item_t *pending;
+         registered_cb_item_t *cb;
+
+diff --git a/orte/tools/orted/orted.c b/orte/tools/orted/orted.c
+index 8aac553..0575fa3 100644
+--- a/orte/tools/orted/orted.c
++++ b/orte/tools/orted/orted.c
+@@ -36,6 +36,11 @@
+
+ #include "orte/orted/orted.h"
+
++/*
++ * Load OSv .so file immediately
++ */
++asm(".pushsection .note.osv-mlock, \"a\"; .long 0, 0, 0; .popsection");
++
+ int main(int argc, char *argv[])
+ {
+     /* Allow the PLM starters to pass us a umask to use, if required.
+--
+2.5.0
+
+
+From e97f28336dfc749808b8fb1d56d37d4e22053196 Mon Sep 17 00:00:00 2001
+From: Justin Cinkelj <justin.cinkelj@xlab.si>
+Date: Mon, 25 Jan 2016 15:35:39 +0100
+Subject: [PATCH 2/2] patch v2
+
+---
+ orte/mca/iof/base/iof_base_setup.c                 | 4 ++--
+ orte/mca/odls/default/odls_default_module.c        | 2 +-
+ orte/runtime/data_type_support/orte_dt_print_fns.c | 7 +++++--
+ 3 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/orte/mca/iof/base/iof_base_setup.c b/orte/mca/iof/base/iof_base_setup.c
+index 3f581a1..18adbae 100644
+--- a/orte/mca/iof/base/iof_base_setup.c
++++ b/orte/mca/iof/base/iof_base_setup.c
+@@ -123,9 +123,9 @@ orte_iof_base_setup_child(orte_iof_base_io_conf_t *opts, char ***env)
+ {
+     int ret;
+     char *str;
+-    fprintf(stderr, "TTRT orte_iof_base_setup_child \n");
++    //fprintf(stderr, "TTRT orte_iof_base_setup_child \n");
+     if(opal_is_osv()) {
+-        fprintf(stderr, "TTRT orte_iof_base_setup_child OSv no-op \n");
++        //fprintf(stderr, "TTRT orte_iof_base_setup_child OSv no-op \n");
+         return ORTE_SUCCESS;
+     }
+
+diff --git a/orte/mca/odls/default/odls_default_module.c b/orte/mca/odls/default/odls_default_module.c
+index 4d3586c..139c122 100644
+--- a/orte/mca/odls/default/odls_default_module.c
++++ b/orte/mca/odls/default/odls_default_module.c
+@@ -731,7 +731,7 @@ static int do_child(orte_app_context_t* context,
+             opal_output(0, "%s\tARGV[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, context->argv[jout]);
+         }
+         for (jout=0; NULL != environ_copy[jout]; jout++) {
+-            //opal_output(0, "%s\tENVIRON[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, environ_copy[jout]);
++            opal_output(0, "%s\tENVIRON[%d]: %s", ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), jout, environ_copy[jout]);
+         }
+     }
+
+diff --git a/orte/runtime/data_type_support/orte_dt_print_fns.c b/orte/runtime/data_type_support/orte_dt_print_fns.c
+index 5791f21..3fb731b 100644
+--- a/orte/runtime/data_type_support/orte_dt_print_fns.c
++++ b/orte/runtime/data_type_support/orte_dt_print_fns.c
+@@ -556,12 +556,15 @@ int orte_dt_print_app_context(char **output, char *prefix, orte_app_context_t *s
+         tmp = tmp2;
+     }
+
+-    /* count = opal_argv_count(src->env);
++    /* zakaj bi to hotel zakomentirati ? samo da je less verbose ?
++     * Ali sem pa ene cudne crashe imel
++     **/
++    count = opal_argv_count(src->env);
+     for (i=0; i < count; i++) {
+         asprintf(&tmp2, "%s\n%s\tEnv[%lu]: %s", tmp, pfx2, (unsigned long)i, src->env[i]);
+         free(tmp);
+         tmp = tmp2;
+-    } */
++    }
+
+     asprintf(&tmp2, "%s\n%s\tWorking dir: %s (user: %d session-dir: %d)\n%s\tPrefix: %s\n%s\tHostfile: %s\tAdd-Hostfile: %s", tmp,
+              pfx2, (NULL == src->cwd) ? "NULL" : src->cwd, (int) src->user_specified_cwd, (int) src->set_cwd_to_session_dir,
+--
+2.5.0
+

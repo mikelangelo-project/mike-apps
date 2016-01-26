@@ -1,0 +1,61 @@
+#!/bin/sh
+
+# exit on error
+set -e
+
+## VERSION=v1.10.2  # 799148f8
+VERSION=v1.10.1  # b80f8028
+BASEDIR="$PWD"
+SRCDIR="$BASEDIR/ompi-release"
+
+# enable parallel build
+export MAKEFLAGS="-j `nproc`"
+
+if [ ! -d ompi-release ]; then
+    # Checkout code
+    git clone --depth 1 --branch $VERSION https://github.com/open-mpi/ompi-release.git 
+    cd ompi-release
+    git checkout -b ompi-osv
+    cd "$BASEDIR"
+
+    # Patch code
+    if [ ! -d ompi-release/.git ]; then
+        echo 'ERROR, no ompi-release/.git, git reset --hard would be bad idea.' 1>&2
+        exit 1
+    fi
+    (cd ompi-release && git reset --hard && git checkout ompi-osv)
+    # patch with OSv related patches
+    (cd ompi-release && patch -p1 < "$BASEDIR/patches/ompi-osv-v1b.patch")
+fi
+
+if [ ! -f ompi-release/build-osv/AAA-build-ok ]
+then
+    # Configure and compile
+    (cd ompi-release && ./autogen.pl)
+    #
+    mkdir -p ompi-release/build-osv
+    cd ompi-release/build-osv
+    #
+    ../configure --prefix=/usr/local --disable-dlopen \
+        --disable-oshmem --disable-posix-shmem --disable-sysv-shmem \
+        CFLAGS="-fPIC -DPIC" --enable-debug --disable-pty-support --without-hwloc \
+        --enable-static --enable-shared
+    make -j `nproc`
+    chmod a+x ../make-orted-so.sh  # TODO fix git
+    ../make-orted-so.sh
+    # make install
+    
+    date >> AAA-build-ok
+fi
+
+
+echo "
+/usr/lib/libibverbs.so.1:   /usr/lib/libibverbs.so.1
+/usr/lib/libmpi.so.12:      ${SRCDIR}/build-osv/ompi/.libs/libmpi.so.12
+/usr/lib/libmpi.so.1:       ${SRCDIR}/build-osv/ompi/.libs/libmpi.so.12
+/usr/lib/libopen-pal.so.13: ${SRCDIR}/build-osv/opal/.libs/libopen-pal.so.13
+/usr/lib/libopen-rte.so.12: ${SRCDIR}/build-osv/orte/.libs/libopen-rte.so.12
+/usr/lib/orted.so:          ${SRCDIR}/build-osv/orte/tools/orted/.libs/orted.so
+
+/usr/local/share/openmpi/help-opal-shmem-mmap.txt: ${SRCDIR}/opal/mca/shmem/mmap/help-opal-shmem-mmap.txt
+" > "$BASEDIR/usr.manifest"
