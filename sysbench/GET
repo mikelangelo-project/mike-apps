@@ -7,7 +7,7 @@ BASEDIR=$PWD
 ROOTDIR=$BASEDIR/install
 SRCDIR=$BASEDIR/sysbench-$VERSION
 
-# Check whether we need to download the tarbalj0j0
+# Check whether we need to download the tarbal
 if [ ! -f sysbench-$VERSION.zip ]; then
     wget https://github.com/akopytov/sysbench/archive/$VERSION.zip -O sysbench-$VERSION.zip
 fi
@@ -33,6 +33,6 @@ mkdir -p install/lib
 ldd $SRCDIR/sysbench/sysbench | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTDIR/lib
 
 echo "
-/usr/lib/**:${ROOTDIR}/lib/**
-/usr/bin/sysbench:$SRCDIR/sysbench/sysbench
+/usr/lib/**: ${ROOTDIR}/lib/**
+/usr/bin/sysbench: $SRCDIR/sysbench/sysbench
 " > usr.manifest
