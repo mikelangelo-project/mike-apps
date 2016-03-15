@@ -40,20 +40,39 @@ patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
 cd $SRCDIR/src
 ./Allwmake
 
-# Apply the patch changing WMake options to position independent executables.
-cd $SRCDIR
-patch -p1 < $BASEDIR/patches/pie.patch
-
 # Go and build the simpleFoam
+# First regular Linux executable simpleFoam, capture its build command,
+# then re-build shared object simpleFoam.so.
 cd $SRCDIR/applications/solvers/incompressible/simpleFoam
-wmake
+DESTF=$SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam
+rm -f $DESTF
+# wmake will print used make command to stdout.
+# Capture it, then transform it to build shared object instead of executable.
+# When running VAR=`wmake`, some additional "make[1]: ..." header is added,
+# compared to entering only 'wmake' in shell.
+CAPTURED_CMD1=`wmake`
+
+# Remove 'make[1]' header
+# Change output file from ' -o simpleFoam' to ' -o simpleFoam.so'
+CAPTURED_CMD2=`echo "CAPTURED_CMD1" | sed -e '/^make\[.*$/d' -e "s| -o $DESTF| -o $DESTF.so -shared|" `
+echo "/**********************************************************************/"
+echo "CAPTURED_CMD1"
+echo "$CAPTURED_CMD1"
+echo "/*********************************/"
+echo "CAPTURED_CMD2"
+echo "$CAPTURED_CMD2"
+echo "/*********************************/"
+# sign \ is problem for simple $CAPTURED_CMD2, so pipe command to bash
+echo "CAPTURED_CMD2" | bash
+echo "/**********************************************************************/"
+file $DESTF*
 
 cd $BASEDIR
 mkdir -p $ROOTFS/usr/lib
 mkdir -p $ROOTFS/usr/bin
 mkdir -p $ROOTFS/openfoam
 
-cp $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam  $ROOTFS/usr/bin
+cp $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam.so  $ROOTFS/usr/bin
 
 ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTFS/usr/lib
 # Also install libfieldFunctionObjects.so as it is not linked from the simpleFoam
@@ -64,7 +83,7 @@ install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
 cp -r $SRCDIR/etc $ROOTFS/openfoam
 
 echo "
-/usr/bin/simpleFoam: ${ROOTFS}/usr/bin/simpleFoam
+/usr/bin/simpleFoam.so: ${ROOTFS}/usr/bin/simpleFoam.so
 /usr/lib/**: ${ROOTFS}/usr/lib/**
 /openfoam/etc/**: $ROOTFS/openfoam/etc/**
 " > usr.manifest
