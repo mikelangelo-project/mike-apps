@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -e
+
+VERSION=5.2
+BASEDIR="$PWD"
+ROOTDIR="$BASEDIR/ROOTFS"
+SRCDIR="$BASEDIR/osu-micro-benchmarks-$VERSION"
+
+wget http://mvapich.cse.ohio-state.edu/download/mvapich/osu-micro-benchmarks-$VERSION.tar.gz -O osu-micro-benchmarks-$VERSION.tar.gz
+tar -xzf osu-micro-benchmarks-$VERSION.tar.gz
+
+cd "$SRCDIR"
+# ./configure fails if CFLAGS includes -shared.
+# Use wrapper to add -shared to gcc cmdline later at make stage.
+cat <<EOF >"$SRCDIR/my-gcc"
+#!/bin/bash
+# export CFLAGS2='-fPIC -shared'
+gcc \$CFLAGS2 "\$@"
+EOF
+chmod a+x my-gcc
+
+export CFLAGS2=''
+# mike-apps/OpenMPI is installed into $HOME/openmpi-bin/.
+./configure CFLAGS="-I$HOME/openmpi-bin/include" LDFLAGS="-L$HOME/openmpi-bin/lib" LIBS="-lmpi -lopen-rte -lopen-pal" --prefix=$ROOTDIR CC="$SRCDIR/my-gcc"
+#
+export CFLAGS2='-fPIC -shared'
+make clean
+make -j`nproc`
+make install
+# file $ROOTDIR/libexec/osu-micro-benchmarks/mpi/pt2pt/osu_latency
+
+cat <<EOF >$BASEDIR/usr.manifest
+/**: $ROOTDIR/**
+EOF
+
+#
