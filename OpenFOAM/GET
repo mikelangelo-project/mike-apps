@@ -54,7 +54,7 @@ CAPTURED_CMD1=`wmake`
 
 # Remove 'make[1]' header
 # Change output file from ' -o simpleFoam' to ' -o simpleFoam.so'
-CAPTURED_CMD2=`echo "CAPTURED_CMD1" | sed -e '/^make\[.*$/d' -e "s| -o $DESTF| -o $DESTF.so -shared|" `
+CAPTURED_CMD2=`echo "$CAPTURED_CMD1" | sed -e '/^make\[.*$/d' -e "s| -o $DESTF| -o $DESTF.so -shared|" `
 echo "/**********************************************************************/"
 echo "CAPTURED_CMD1"
 echo "$CAPTURED_CMD1"
@@ -63,7 +63,7 @@ echo "CAPTURED_CMD2"
 echo "$CAPTURED_CMD2"
 echo "/*********************************/"
 # sign \ is problem for simple $CAPTURED_CMD2, so pipe command to bash
-echo "CAPTURED_CMD2" | bash
+echo "$CAPTURED_CMD2" | bash
 echo "/**********************************************************************/"
 file $DESTF*
 
