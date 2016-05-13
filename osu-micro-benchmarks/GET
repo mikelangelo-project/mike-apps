@@ -21,10 +21,22 @@ EOF
 chmod a+x my-gcc
 
 export CFLAGS2=''
-# mike-apps/OpenMPI is installed into $HOME/openmpi-bin/.
-./configure CFLAGS="-I$HOME/openmpi-bin/include" LDFLAGS="-L$HOME/openmpi-bin/lib" LIBS="-lmpi -lopen-rte -lopen-pal" --prefix=$ROOTDIR CC="$SRCDIR/my-gcc"
+# mike-apps/OpenMPI is installed into $HOME/openmpi-bin/, reuse the same dir for OSU tests.
+# Host binaries will be in $HOME/openmpi-bin/libexec/osu-micro-benchmarks/mpi/.
+#
+# for host
+export CFLAGS_PREFIX="--prefix=$HOME/openmpi-bin/"
+./configure CFLAGS="-I$HOME/openmpi-bin/include" LDFLAGS="-L$HOME/openmpi-bin/lib" LIBS="-lmpi -lopen-rte -lopen-pal" $CFLAGS_PREFIX CC="$SRCDIR/my-gcc"
+# clean will remove binaries from OSv build
+make clean
+make -j`nproc` && make install
+#
+# for OSv VM
+export CFLAGS_PREFIX="--prefix=$ROOTDIR"
+./configure CFLAGS="-I$HOME/openmpi-bin/include" LDFLAGS="-L$HOME/openmpi-bin/lib" LIBS="-lmpi -lopen-rte -lopen-pal" $CFLAGS_PREFIX CC="$SRCDIR/my-gcc"
 #
 export CFLAGS2='-fPIC -shared'
+# clean will remove binaries from host/Linux build
 make clean
 make -j`nproc`
 make install
