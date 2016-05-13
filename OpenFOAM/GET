@@ -74,7 +74,8 @@ mkdir -p $ROOTFS/openfoam
 
 cp $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam.so  $ROOTFS/usr/bin
 
-ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+).so' | xargs -I {} install  {} $ROOTFS/usr/lib
+# System supplied openMPI libraries should not be used (mpi|mpi_cxx|open-pal|open-rte)
+ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte).so' | xargs -I {} install  {} $ROOTFS/usr/lib
 # Also install libfieldFunctionObjects.so as it is not linked from the simpleFoam
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTFS/usr/lib
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
