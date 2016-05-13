@@ -40,7 +40,7 @@ then
     cd ompi-release/$BUILD_DIR
     #
     ../configure --prefix=$HOME/openmpi-bin --disable-dlopen \
-        --disable-oshmem --disable-posix-shmem --disable-sysv-shmem \
+        --disable-oshmem --disable-posix-shmem \
         CFLAGS="-fPIC -DPIC" --disable-pty-support --disable-vt \
         --enable-static --enable-shared $CONFIGURE_FLAGS
     make -j `nproc`
