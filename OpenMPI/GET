@@ -76,6 +76,7 @@ echo "
 /usr/lib/libopen-rte.so.12: ${SRCDIR}/$BUILD_DIR/orte/.libs/libopen-rte.so.12
 /usr/lib/libmpi_cxx.so.1:   ${SRCDIR}/$BUILD_DIR/ompi/mpi/cxx/.libs/libmpi_cxx.so.1
 /usr/lib/orted.so:          ${SRCDIR}/$BUILD_DIR/orte/tools/orted/.libs/orted.so
+/usr/lib/orterun.so:        ${SRCDIR}/$BUILD_DIR/orte/tools/orterun/.libs/orterun.so
 
 /usr/local/share/openmpi/help-opal-shmem-mmap.txt: ${SRCDIR}/opal/mca/shmem/mmap/help-opal-shmem-mmap.txt
 " > "$BASEDIR/usr.manifest"
