@@ -1,4 +1,4 @@
-# Mikelangelo Apps
+# MIKELANGELO Applications for OSv
 
 To use the repository, you have to clone it first on your machine.
 
