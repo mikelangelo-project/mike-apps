@@ -39,8 +39,12 @@ then
     mkdir -p ompi-release/$BUILD_DIR
     cd ompi-release/$BUILD_DIR
     #
+    # OSv chrashes at VM termination if SYSV shmem is used. Disable it until fixed.
+    # Otherwise, SYSV shmem seems to work.
+    # See https://github.com/cloudius-systems/osv/issues/755.
     ../configure --prefix=$HOME/openmpi-bin --disable-dlopen \
         --disable-oshmem --disable-posix-shmem \
+        --disable-sysv-shmem \
         CFLAGS="-fPIC -DPIC" --disable-pty-support --disable-vt \
         --enable-static --enable-shared $CONFIGURE_FLAGS
     make -j `nproc`
