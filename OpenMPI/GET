@@ -10,7 +10,7 @@ BASEDIR="$PWD"
 SRCDIR="$BASEDIR/ompi-release"
 
 CONFIGURE_FLAGS=""
-DISTRO_NAME=`python -c 'import platform; pp=platform.linux_distribution(); str="%s-%s" % (pp[0], pp[1]); str=str.replace(" ", "-").lower(); print str; '`
+DISTRO_NAME=`python -c 'import platform; pp=platform.linux_distribution(); str="%s-%s" % (pp[0], pp[1]); str=str.replace(" ", "-").lower(); print(str); '`
 if [ "$mode" = "debug" ]; then
     CONFIGURE_FLAGS="--enable-debug"
     BUILD_DIR="build-osv-debug-$DISTRO_NAME"
