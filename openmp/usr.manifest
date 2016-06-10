@@ -1,2 +1,0 @@
-/omp_hello: ${MODULE_DIR}/omp_hello
-/usr/lib/libgomp.so.1: ${MODULE_DIR}/libgomp.so.1
