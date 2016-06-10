@@ -18,7 +18,7 @@ if [ ! -d "$SRCDIR" ]; then
     cd "$BASEDIR"
 fi
 
-# OpenMPI should be already installed - header files, dev libs.
+# Open MPI should be already installed - header files, dev libs.
 (cd $SRCDIR && make all)
 
 echo "

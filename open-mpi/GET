@@ -18,7 +18,7 @@ else  # release
     CONFIGURE_FLAGS="--with-platform=optimized"
     BUILD_DIR="build-osv-release-$DISTRO_NAME"
 fi
-echo "Using OpenMPI CONFIGURE_FLAGS=$CONFIGURE_FLAGS"
+echo "Using Open MPI CONFIGURE_FLAGS=$CONFIGURE_FLAGS"
 
 # enable parallel build
 export MAKEFLAGS="-j `nproc`"
@@ -51,18 +51,18 @@ then
     chmod a+x ../make-orted-so.sh  # TODO fix git
     ../make-orted-so.sh
 
-    # No need to install OpenMPI to get it compiled for OSv.
+    # No need to install Open MPI to get it compiled for OSv.
     # But mpicc is needed to compile OpenFOAM, so we install it anyway.
     #
     # To compile OpenFOAM, it would be enough to install system supplied
-    # OpenMPI, but then a simple 'mpirun ...' would use wrong binary.
+    # Open MPI, but then a simple 'mpirun ...' would use wrong binary.
     # This would require additional messing with PATH/LD_LIBRARY_PATH.
     make install  # safe with -prefix=$HOME/openmpi-bin
     # add to $PATH, $LD_LIBRARY_PATH ...
-    if [ -z "`cat ~/.bashrc | grep 'MAGIC LINE mike-apps OpenMPI included'`" ]; then
+    if [ -z "`cat ~/.bashrc | grep 'MAGIC LINE mike-apps open-mpi included'`" ]; then
         cat <<EOF >> ~/.bashrc
 
-# MAGIC LINE mike-apps OpenMPI included : OSv mike-apps openmpi bin/libs
+# MAGIC LINE mike-apps open-mpi included : OSv mike-apps openmpi bin/libs
 export PATH=$HOME/openmpi-bin/bin:\$PATH
 export LD_LIBRARY_PATH=$HOME/openmpi-bin/lib:\$LD_LIBRARY_PATH
 

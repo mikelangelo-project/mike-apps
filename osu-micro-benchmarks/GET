@@ -21,7 +21,7 @@ EOF
 chmod a+x my-gcc
 
 export CFLAGS2=''
-# mike-apps/OpenMPI is installed into $HOME/openmpi-bin/, reuse the same dir for OSU tests.
+# mike-apps/open-mpi is installed into $HOME/openmpi-bin/, reuse the same dir for OSU tests.
 # Host binaries will be in $HOME/openmpi-bin/libexec/osu-micro-benchmarks/mpi/.
 #
 # for host

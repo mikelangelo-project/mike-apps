@@ -37,12 +37,12 @@ openfoam-cases
 
 ### Install osv_proxy
 
-osv_proxy.py is just a tiny wrapper for OpenMPI, used to start OSv VM with OpenMPI orted.so instead of only orted (as opposed to Linux).
+osv_proxy.py is just a tiny wrapper for Open MPI, used to start OSv VM with Open MPI orted.so instead of only orted (as opposed to Linux).
 Code and install instructions are at https://gitlab.xlab.si/mikelangelo/osv_proxy.
 
 At the moment, branch `jc-temp1` should be used.
 
-Also note that osv_proxy has to be installed on each compute host 
+Also note that osv_proxy has to be installed on each compute host
 (e.g. machines with IP1, IP2 in command `mpirun -H IP1,IP2 ...`)
 
 ### Add openfoam-cases to OSv modules
@@ -64,11 +64,11 @@ cat osv/config.json
 ...
 ```
 
-### Compile OpenFOAM and OpenMPI
+### Compile OpenFOAM and Open MPI
 
-To perform benchmark comparison between host and OSv VM, we build OpenFOAM and OpenMPI with same compiler flags.
-To make this easier, are both OpenFOAM and OpenMPI from https://gitlab.xlab.si/mikelangelo/mike-apps modified to 
-build regular executable for Linux and shared object file "executable" for OSv at the same time. 
+To perform benchmark comparison between host and OSv VM, we build OpenFOAM and Open MPI with same compiler flags.
+To make this easier, are both OpenFOAM and Open MPI from https://gitlab.xlab.si/mikelangelo/mike-apps modified to
+build regular executable for Linux and shared object file "executable" for OSv at the same time.
 
 #### OSv image
 
@@ -76,26 +76,26 @@ To build OSv image:
 
 ```bash
 cd $DEVDIR/osv/
-scripts/build mode=release image=OpenFOAM,OpenMPI,mik3d_1h-4cpu,mik3d_1h-1cpu,openmpi-hello,cli -j8
+scripts/build mode=release image=OpenFOAM,open-mpi,mik3d_1h-4cpu,mik3d_1h-1cpu,openmpi-hello,cli -j8
 # could also include also openmpi-hello,sysbench,osu-micro-benchmarks
 ```
 
-The OSv image is now prepared. We still have to install the same OpenMPI on the host.
+The OSv image is now prepared. We still have to install the same Open MPI on the host.
 ```bash
-(cd $DEVDIR/mike-apps/OpenMPI/ompi-release/build-osv/ && make install)
+(cd $DEVDIR/mike-apps/open-mpi/ompi-release/build-osv/ && make install)
 ```
 
-#### OpenMPI for host
+#### Open MPI for host
 
 Running `make install` on host will install compiled binaries to `$HOME/openmpi-bin/` directory.
-This makes using binaries a bit painful. 
+This makes using binaries a bit painful.
 The reason for not installing into usual place (`/usr/local`) is to avoid requiring root access on host.
-OpenMPI should (during compiling for OSv, while its GET executes) add to your .bashrc:
+Open MPI should (during compiling for OSv, while its GET executes) add to your .bashrc:
 
 ```bash
 cat $HOME/.bashrc
 ...
-# MAGIC LINE mike-apps OpenMPI included : OSv mike-apps openmpi bin/libs 
+# MAGIC LINE mike-apps open-mpi included : OSv mike-apps openmpi bin/libs
 export PATH=/home/xlab/openmpi-bin/bin:$PATH
 export LD_LIBRARY_PATH=/home/xlab/openmpi-bin/lib:$LD_LIBRARY_PATH
 ```
@@ -120,11 +120,11 @@ rank from=0 me=1 to=2
 Recv 0 -> 1
 rank from=2 me=0 to=1
 Send 0 -> 1
-(rank= 0) 1000 0000 0000 0000 0000 0000 0000 0000 
+(rank= 0) 1000 0000 0000 0000 0000 0000 0000 0000
 Recv 2 -> 0
-(rank= 1) 1000 0000 0000 0000 0000 0000 0000 0000 
+(rank= 1) 1000 0000 0000 0000 0000 0000 0000 0000
 Send 1 -> 2
-(rank= 2) 1000 1001 0000 0000 0000 0000 0000 0000 
+(rank= 2) 1000 1001 0000 0000 0000 0000 0000 0000
 ...
 ```
 
