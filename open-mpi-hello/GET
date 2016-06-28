@@ -12,7 +12,7 @@ export MAKEFLAGS="-j `nproc`"
 
 if [ ! -d "$SRCDIR" ]; then
     # Checkout code
-    git clone --depth 1 --branch $VERSION https://gitlab.xlab.si/mikelangelo/ompi-hello.git
+    git clone --depth 1 --branch $VERSION https://github.com/mikelangelo-project/ompi-hello.git
     cd "$SRCDIR"
     git checkout -b ompi-osv
     cd "$BASEDIR"
