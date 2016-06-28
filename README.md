@@ -25,3 +25,10 @@ You can still include other modules and applications. The following will build a
 ```bash
 make image=OpenFOAM,httpserver
 ```
+
+## Acknowledgements
+
+This project  has been conducted within the RIA [MIKELANGELO
+project](https://www.mikelangelo-project.eu) (no.  645402), started in January
+2015, and co-funded by the European Commission under the H2020-ICT- 07-2014:
+Advanced Cloud Infrastructures and Services programme.
