@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 VERSION=2.4.0
 BASEDIR=$PWD
@@ -7,6 +7,7 @@ SRCDIR=$BASEDIR/OpenFOAM-$VERSION
 
 # enable parallel build
 export MAKEFLAGS="-j `nproc`"
+export WM_NCOMPPROCS="`nproc`"
 
 # Check whether we need to download the tarbalj0j0
 if [ ! -f OpenFOAM-$VERSION.tgz ]; then
@@ -36,48 +37,70 @@ make
 cd $SRCDIR
 patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
 # Patch missing dependency - libfluidThermophysicalModels.so uses libspecie.so
-patch -p0 < $BASEDIR/patches/thermophysicalModels-dependency.patch
+patch -p1 < $BASEDIR/patches/thermophysicalModels-dependency.patch
 
 # Make the OpenFOAM library
 cd $SRCDIR/src
 ./Allwmake
 
-# Go and build the simpleFoam
-# First regular Linux executable simpleFoam, capture its build command,
-# then re-build shared object simpleFoam.so.
-cd $SRCDIR/applications/solvers/incompressible/simpleFoam
-DESTF=$SRCDIR/platforms/linux64GccDPOpt/bin/simpleFoam
-rm -f $DESTF
-# wmake will print used make command to stdout.
-# Capture it, then transform it to build shared object instead of executable.
-# When running VAR=`wmake`, some additional "make[1]: ..." header is added,
-# compared to entering only 'wmake' in shell.
-CAPTURED_CMD1=`wmake`
-
-# Remove 'make[1]' header
-# Change output file from ' -o simpleFoam' to ' -o simpleFoam.so'
-CAPTURED_CMD2=`echo "$CAPTURED_CMD1" | sed -e '/^make\[.*$/d' -e "s| -o $DESTF| -o $DESTF.so -shared|" `
-echo "/**********************************************************************/"
-echo "CAPTURED_CMD1"
-echo "$CAPTURED_CMD1"
-echo "/*********************************/"
-echo "CAPTURED_CMD2"
-echo "$CAPTURED_CMD2"
-echo "/*********************************/"
-# sign \ is problem for simple $CAPTURED_CMD2, so pipe command to bash
-echo "$CAPTURED_CMD2" | bash
-echo "/**********************************************************************/"
-file $DESTF*
+# Which solvers will be included into image
+APPDIRS=""
+APPDIRS+=" applications/solvers/basic/potentialFoam"
+APPDIRS+=" applications/solvers/incompressible/simpleFoam"
+APPDIRS+=" applications/solvers/compressible/rhoSimpleFoam"
+APPDIRS+=" applications/solvers/incompressible/simpleFoam/porousSimpleFoam"
+APPDIRS+=" applications/solvers/compressible/rhoSimpleFoam/rhoPorousSimpleFoam"
+APPDIRS+=" applications/solvers/incompressible/pisoFoam"
+APPDIRS+=" applications/solvers/incompressible/pimpleFoam"
 
 cd $BASEDIR
 mkdir -p $ROOTFS/usr/lib
 mkdir -p $ROOTFS/usr/bin
 mkdir -p $ROOTFS/openfoam
 
-cp $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam.so  $ROOTFS/usr/bin
+function relink_so () {
+  APPDIR="$1"
+  DESTF_SHORT=`basename "$APPDIR"`
+  DESTF_FULL="$SRCDIR/platforms/$WM_OPTIONS/bin/$DESTF_SHORT"
 
-# System supplied openMPI libraries should not be used (mpi|mpi_cxx|open-pal|open-rte)
-ldd $SRCDIR/platforms/$WM_OPTIONS/bin/simpleFoam | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte).so' | xargs -I {} install  {} $ROOTFS/usr/lib
+  # Go and build application $DESTF_SHORT (say simpleFoam, potentialFoam etc).
+  # First, build the regular Linux executable $DESTF_SHORT, capture its build command,
+  # then re-build shared object $DESTF_SHORT.so.
+  cd "$SRCDIR/$APPDIR"
+  rm -f "$DESTF_FULL"
+  # wmake will print used make command to stdout.
+  # Capture it, then transform it to build shared object instead of executable.
+  # When running VAR=`wmake`, some additional "make[1]: ..." header is added,
+  # compared to entering only 'wmake' in shell.
+  CAPTURED_CMD1=`wmake`
+
+  # Remove 'make[1]' header
+  # Change output file from ' -o $DESTF_SHORT' to ' -o $DESTF_SHORT.so'
+  CAPTURED_CMD2=`echo "$CAPTURED_CMD1" | sed -e '/^make\[.*$/d' -e "s| -o $DESTF_FULL| -o $DESTF_FULL.so -shared|" `
+  echo "/**********************************************************************/"
+  echo "CAPTURED_CMD1"
+  echo "$CAPTURED_CMD1"
+  echo "/*********************************/"
+  echo "CAPTURED_CMD2"
+  echo "$CAPTURED_CMD2"
+  echo "/*********************************/"
+  # sign \ is problem for simple $CAPTURED_CMD2, so pipe command to bash
+  echo "$CAPTURED_CMD2" | bash
+  echo "/**********************************************************************/"
+  file "$DESTF_FULL"*
+
+  cp "$DESTF_FULL".so  $ROOTFS/usr/bin
+
+  # System supplied openMPI libraries should not be used (mpi|mpi_cxx|open-pal|open-rte)
+  ldd "$DESTF_FULL".so | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte).so' | xargs -I {} install  {} $ROOTFS/usr/lib
+  cd -
+}
+
+for appdir in $APPDIRS
+do
+  relink_so "$appdir"
+done
+
 # Also install libfieldFunctionObjects.so as it is not linked from the simpleFoam
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTFS/usr/lib
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
@@ -86,7 +109,7 @@ install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
 cp -r $SRCDIR/etc $ROOTFS/openfoam
 
 echo "
-/usr/bin/simpleFoam.so: ${ROOTFS}/usr/bin/simpleFoam.so
+/usr/bin/**: ${ROOTFS}/usr/bin/**
 /usr/lib/**: ${ROOTFS}/usr/lib/**
 /openfoam/etc/**: $ROOTFS/openfoam/etc/**
 " > usr.manifest
