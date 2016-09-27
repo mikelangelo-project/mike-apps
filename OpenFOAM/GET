@@ -35,6 +35,8 @@ make
 # Patch the solidMixtureProperties library
 cd $SRCDIR
 patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
+# Patch missing dependency - libfluidThermophysicalModels.so uses libspecie.so
+patch -p0 < $BASEDIR/patches/thermophysicalModels-dependency.patch
 
 # Make the OpenFOAM library
 cd $SRCDIR/src
