@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # exit on error
 set -e
@@ -69,17 +69,34 @@ EOF
     date >> AAA-build-ok
 fi
 
+OMPI_LIBS=""
+OMPI_LIBS+=" ompi/.libs/libmpi.so.12"
+OMPI_LIBS+=" opal/.libs/libopen-pal.so.13"
+OMPI_LIBS+=" orte/.libs/libopen-rte.so.12"
+OMPI_LIBS+=" ompi/mpi/cxx/.libs/libmpi_cxx.so.1"
+OMPI_LIBS+=" orte/tools/orted/.libs/orted.so"
+OMPI_LIBS+=" orte/tools/orterun/.libs/orterun.so"
 
-echo "
-/usr/lib/libibverbs.so.1:   /usr/lib/libibverbs.so.1
-/usr/lib/libmpi.so.12:      ${SRCDIR}/$BUILD_DIR/ompi/.libs/libmpi.so.12
-/usr/lib/libmpi.so.1:       ${SRCDIR}/$BUILD_DIR/ompi/.libs/libmpi.so.12
-/usr/lib/libopen-pal.so.13: ${SRCDIR}/$BUILD_DIR/opal/.libs/libopen-pal.so.13
-/usr/lib/libopen-rte.so.12: ${SRCDIR}/$BUILD_DIR/orte/.libs/libopen-rte.so.12
-/usr/lib/libmpi_cxx.so.1:   ${SRCDIR}/$BUILD_DIR/ompi/mpi/cxx/.libs/libmpi_cxx.so.1
-/usr/lib/orted.so:          ${SRCDIR}/$BUILD_DIR/orte/tools/orted/.libs/orted.so
-/usr/lib/orterun.so:        ${SRCDIR}/$BUILD_DIR/orte/tools/orterun/.libs/orterun.so
-/usr/bin/mpirun:            ->/usr/lib/orterun.so
+# Open MPI programs and base set of libraries
+echo "" > "$BASEDIR/usr.manifest"
+for ff in $OMPI_LIBS
+do
+    LIB_NAME=`basename "$ff"`
+    echo "/usr/lib/$LIB_NAME:    ${SRCDIR}/$BUILD_DIR/$ff" >> "$BASEDIR/usr.manifest"
+done
 
-/usr/local/share/openmpi/help-opal-shmem-mmap.txt: ${SRCDIR}/opal/mca/shmem/mmap/help-opal-shmem-mmap.txt
-" > "$BASEDIR/usr.manifest"
+# Add one additional symlink (mpirun is actually orterun).
+# Also, some apps are linked against libmpi.so.1, not libmpi.so.12.
+# This substitute seems to work.
+echo "" >> "$BASEDIR/usr.manifest"
+echo "/usr/lib/libmpi.so.1:    ->/usr/lib/libmpi.so.12" >> "$BASEDIR/usr.manifest"
+echo "/usr/bin/mpirun:    ->/usr/lib/orterun.so" >> "$BASEDIR/usr.manifest"
+
+# Add Open MPI help files.
+# make install puts them into $HOME subdir, and that path is then baked into compiled binaries too.
+echo "$HOME/openmpi-bin/share/openmpi/**: $HOME/openmpi-bin/share/openmpi/**" >> "$BASEDIR/usr.manifest"
+
+# Include dependency libs.
+echo "" >> "$BASEDIR/usr.manifest"
+echo "/usr/lib/libibverbs.so.1:   /usr/lib/libibverbs.so.1" >> "$BASEDIR/usr.manifest"
+echo "/usr/lib/libnuma.so.1:   /usr/lib64/libnuma.so.1" >> "$BASEDIR/usr.manifest"
