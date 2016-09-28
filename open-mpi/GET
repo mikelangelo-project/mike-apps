@@ -61,13 +61,19 @@ then
         cat <<EOF >> ~/.bashrc
 
 # MAGIC LINE mike-apps open-mpi included : OSv mike-apps openmpi bin/libs
-export PATH=$HOME/openmpi-bin/bin:\$PATH
-export LD_LIBRARY_PATH=$HOME/openmpi-bin/lib:\$LD_LIBRARY_PATH
+export PATH="$HOME/openmpi-bin/bin:\$PATH"
+export LD_LIBRARY_PATH="$HOME/openmpi-bin/lib:\$LD_LIBRARY_PATH"
 
 EOF
     fi
     date >> AAA-build-ok
 fi
+
+# even if user removes in ~/.bashrc added PATH/LD_LIBRARY_PATH entries, we need them in this script
+# so that ldd is able to find shared library dependencies. So set them once more. Plus, on first run,
+# ~/.bashrc is updated, but we haven't re-source it.
+export PATH="$HOME/openmpi-bin/bin:$PATH"
+export LD_LIBRARY_PATH="$HOME/openmpi-bin/lib:$LD_LIBRARY_PATH"
 
 OMPI_LIBS=""
 OMPI_LIBS+=" ompi/.libs/libmpi.so.12"
@@ -81,7 +87,7 @@ OMPI_LIBS+=" orte/tools/orterun/.libs/orterun.so"
 echo "" > "$BASEDIR/usr.manifest"
 for ff in $OMPI_LIBS
 do
-    LIB_NAME=`basename "$ff"`
+    LIB_NAME="`basename "$ff"`"
     echo "/usr/lib/$LIB_NAME:    ${SRCDIR}/$BUILD_DIR/$ff" >> "$BASEDIR/usr.manifest"
 done
 
@@ -96,7 +102,23 @@ echo "/usr/bin/mpirun:    ->/usr/lib/orterun.so" >> "$BASEDIR/usr.manifest"
 # make install puts them into $HOME subdir, and that path is then baked into compiled binaries too.
 echo "$HOME/openmpi-bin/share/openmpi/**: $HOME/openmpi-bin/share/openmpi/**" >> "$BASEDIR/usr.manifest"
 
-# Include dependency libs.
+# Include dependency libs, used by Open MPI progs/libs.
 echo "" >> "$BASEDIR/usr.manifest"
-echo "/usr/lib/libibverbs.so.1:   /usr/lib/libibverbs.so.1" >> "$BASEDIR/usr.manifest"
-echo "/usr/lib/libnuma.so.1:   /usr/lib64/libnuma.so.1" >> "$BASEDIR/usr.manifest"
+DEP_LIBS=""
+for ff in $OMPI_LIBS
+do
+    DESTF_FULL="${SRCDIR}/$BUILD_DIR/$ff"
+    # Exclude some libs.
+    # Simple programs work without libnl-3.so and libnl-route-3.so.
+    # With them, complain about symbol tdestroy.
+    # This seems to be part of glibc GNU extension, and is missing in OSv.
+    DEP_LIBS+="`ldd "$DESTF_FULL" | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte|nl-3|nl-route-3).so'`"
+    DEP_LIBS+="
+"
+done
+DEP_LIBS=`echo "$DEP_LIBS" | sort | uniq`
+for ff in $DEP_LIBS
+do
+    lib_name=`basename "$ff"`
+    echo "/usr/lib/$lib_name:    $ff" >> "$BASEDIR/usr.manifest"
+done
