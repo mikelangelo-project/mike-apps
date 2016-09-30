@@ -7,6 +7,21 @@ VERSION='v1.10.2a2-osv-port'  # dcccfbb2
 BASEDIR="$PWD"
 SRCDIR="$BASEDIR/ompi-release"
 
+# Check for required build dependencies - libnuma-devel and libibverbs-devel.
+# Just search for .h file installed by specific lib.
+FF='numaif.h verbs.h'
+for ff in $FF; do
+    ffpath="`find /usr/include -iname $ff`"
+    if [ -z "$ffpath" ]; then
+        echo -e "Missing required devel libraries - libnuma-devel and libibverbs-devel.
+To install, run:
+sudo apt-get install libnuma-dev libibverbs-dev  # Ubuntu
+sudo yum install numactl-devel libibverbs-devel  # CentOS
+" 1>&2
+        exit 1
+    fi
+done
+
 CONFIGURE_FLAGS=""
 DISTRO_NAME=`python -c 'import platform; pp=platform.linux_distribution(); str="%s-%s" % (pp[0], pp[1]); str=str.replace(" ", "-").lower(); print(str); '`
 if [ "$mode" = "debug" ]; then
