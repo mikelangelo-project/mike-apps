@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# compile ncat tool from nmap code
+
+# exit on error
+set -e
+
+VERSION='02eb051c44e46f5377ebdfeb5a50e91cc43099b4'
+BASEDIR="$PWD"
+SRCDIR="$BASEDIR/udpping"
+
+# enable parallel build
+export MAKEFLAGS="-j `nproc`"
+
+if [ ! -d udpping ]; then
+    # Checkout code
+    git clone https://github.com/justinc1/udpping
+    (cd udpping && git checkout $VERSION)
+fi
+
+# compile
+(cd udpping && make -j $MAKEFLAGS)
+
+# Generate usr.manifest
+cat <<EOF >"$BASEDIR/usr.manifest" 
+/usr/bin/udpping.so:    ${SRCDIR}/udpping.so
+EOF
+
