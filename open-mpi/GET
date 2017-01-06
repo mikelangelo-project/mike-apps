@@ -127,7 +127,8 @@ do
     # Simple programs work without libnl-3.so and libnl-route-3.so.
     # With them, complain about symbol tdestroy.
     # This seems to be part of glibc GNU extension, and is missing in OSv.
-    DEP_LIBS+="`ldd "$DESTF_FULL" | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte|nl-3|nl-route-3).so'`"
+    CUR_DEP_LIBS="`ldd "$DESTF_FULL" | grep -Po '(?<=> )/[^ ]+' | sort | uniq`"
+    DEP_LIBS+="`echo "$CUR_DEP_LIBS" | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte|nl-3|nl-route-3).so' || true`"
     DEP_LIBS+="
 "
 done
