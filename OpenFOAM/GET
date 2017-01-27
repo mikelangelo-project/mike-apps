@@ -92,7 +92,10 @@ function relink_so () {
   cp "$DESTF_FULL".so  $ROOTFS/usr/bin
 
   # System supplied openMPI libraries should not be used (mpi|mpi_cxx|open-pal|open-rte)
-  ldd "$DESTF_FULL".so | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte).so' | xargs -I {} install  {} $ROOTFS/usr/lib
+  # Simple programs work without libnl-3.so and libnl-route-3.so.
+  # With them, complain about symbol tdestroy.
+  # This seems to be part of glibc GNU extension, and is missing in OSv.
+  ldd "$DESTF_FULL".so | grep -Po '(?<=> )/[^ ]+' | sort | uniq | grep -Pv 'lib(c|gcc|dl|m|util|rt|pthread|stdc\+\+|mpi|mpi_cxx|open-pal|open-rte|nl-3|nl-route-3).so' | xargs -I {} install  {} $ROOTFS/usr/lib
   cd -
 }
 
