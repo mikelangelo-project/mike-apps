@@ -52,6 +52,8 @@ APPDIRS+=" applications/solvers/incompressible/simpleFoam/porousSimpleFoam"
 APPDIRS+=" applications/solvers/compressible/rhoSimpleFoam/rhoPorousSimpleFoam"
 APPDIRS+=" applications/solvers/incompressible/pisoFoam"
 APPDIRS+=" applications/solvers/incompressible/pimpleFoam"
+APPDIRS+=" applications/utilities/parallelProcessing/decomposePar"
+APPDIRS+=" applications/utilities/parallelProcessing/reconstructPar"
 
 cd $BASEDIR
 mkdir -p $ROOTFS/usr/lib
@@ -112,6 +114,9 @@ echo "
 /usr/bin/**: ${ROOTFS}/usr/bin/**
 /usr/lib/**: ${ROOTFS}/usr/lib/**
 /openfoam/etc/**: $ROOTFS/openfoam/etc/**
+
+/usr/bin/decomposePar: ->/usr/bin/decomposePar.so
+/usr/bin/reconstructPar: ->/usr/bin/reconstructPar.so
 " > usr.manifest
 
 # Tu run the openfoam on OSv you need to upload the case explicitly with
