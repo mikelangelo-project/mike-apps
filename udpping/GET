@@ -5,7 +5,7 @@
 # exit on error
 set -e
 
-VERSION='02eb051c44e46f5377ebdfeb5a50e91cc43099b4'
+VERSION='b2453e2af1b3f36630e49d5759bfccc0be188351'
 BASEDIR="$PWD"
 SRCDIR="$BASEDIR/udpping"
 
