@@ -1,0 +1,12 @@
+--- OpenFOAM-2.4.0/src/triSurface/triSurface/interfaces/STL/readSTLASCII.L.orig	2017-08-29 14:06:12.728172888 +0200
++++ OpenFOAM-2.4.0/src/triSurface/triSurface/interfaces/STL/readSTLASCII.L	2017-08-29 14:08:51.849016430 +0200
+@@ -55,7 +55,8 @@
+ // It is called by yylex but is not used as the mechanism to change file.
+ // See <<EOF>>
+ //! \cond dummy
+-#if YY_FLEX_SUBMINOR_VERSION < 34
++// See also https://www.cfd-online.com/Forums/openfoam-installation/163986-building-openfoam-3-0-archlinux.html#post581236
++#if YY_FLEX_SUBMINOR_VERSION < 34 && YY_FLEX_MINOR_VERSION < 6
+ extern "C" int yywrap()
+ #else
+ int yyFlexLexer::yywrap()

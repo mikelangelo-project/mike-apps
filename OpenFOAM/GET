@@ -32,6 +32,8 @@ then
     patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
     # Patch missing dependency - libfluidThermophysicalModels.so uses libspecie.so
     patch -p1 < $BASEDIR/patches/thermophysicalModels-dependency.patch
+    # required when compiling on host with flex 2.6
+    patch -p1 < $BASEDIR/patches/readSTLASCII-and-flex-2.6-fix.patch
 fi
 cd $BASEDIR
 
