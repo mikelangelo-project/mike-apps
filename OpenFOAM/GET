@@ -13,16 +13,27 @@ export WM_NCOMPPROCS="`nproc`"
 if [ ! -f OpenFOAM-$VERSION.tgz ]; then
     wget http://downloads.sourceforge.net/foam/OpenFOAM-$VERSION.tgz
 fi
+
 # Extract the target version
-tar zxf OpenFOAM-$VERSION.tgz
+if [ ! -d OpenFOAM-$VERSION ]
+then
+    tar zxf OpenFOAM-$VERSION.tgz
 
-## Patch bashrc to request debug compilation.
-#cd $SRCDIR
-#patch -p1 < $BASEDIR/patches/debug.patch
+    ## Patch bashrc to request debug compilation.
+    #cd $SRCDIR
+    #patch -p1 < $BASEDIR/patches/debug.patch
 
-# OpenFOAM should not call exit() - in OSv exit shutdowns whole VM
-cd $SRCDIR
-patch -p1 < $BASEDIR/patches/exit.patch
+    # OpenFOAM should not call exit() - in OSv exit shutdowns whole VM
+    cd $SRCDIR
+    patch -p1 < $BASEDIR/patches/exit.patch
+
+    # Patch the solidMixtureProperties library
+    cd $SRCDIR
+    patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
+    # Patch missing dependency - libfluidThermophysicalModels.so uses libspecie.so
+    patch -p1 < $BASEDIR/patches/thermophysicalModels-dependency.patch
+fi
+cd $BASEDIR
 
 # Set OpenFOAM's environment variables required to build the package. You should change this to cshrc if
 # that's the shell you are using.
@@ -32,12 +43,6 @@ export FOAM_INST_DIR=$BASEDIR
 # First, compile the wmake used to build OpenFOAM sources.
 cd $SRCDIR/wmake/src
 make
-
-# Patch the solidMixtureProperties library
-cd $SRCDIR
-patch -p1 < $BASEDIR/patches/solidMixtureProperties-dependency.patch
-# Patch missing dependency - libfluidThermophysicalModels.so uses libspecie.so
-patch -p1 < $BASEDIR/patches/thermophysicalModels-dependency.patch
 
 # Make the OpenFOAM library
 cd $SRCDIR/src
