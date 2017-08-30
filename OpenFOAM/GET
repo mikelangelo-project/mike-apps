@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+# This will fail on gcc6
+# See https://www.cfd-online.com/Forums/openfoam-installation/180040-openfoam-2-4-0-error-building-paraview-4-1-0-a.html#post627619
+
 VERSION=2.4.0
 BASEDIR=$PWD
 ROOTFS=$BASEDIR/ROOTFS
