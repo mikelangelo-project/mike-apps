@@ -58,6 +58,7 @@ then
     ../configure --prefix=$HOME/openmpi-bin --disable-dlopen \
         --disable-oshmem --disable-posix-shmem \
         --disable-sysv-shmem \
+        --enable-mpi-fortran \
         CFLAGS="-fPIC -DPIC" --disable-pty-support --disable-vt \
         --enable-static --enable-shared $CONFIGURE_FLAGS
     make -j `nproc`
@@ -81,6 +82,7 @@ export LD_LIBRARY_PATH="$HOME/openmpi-bin/lib:\$LD_LIBRARY_PATH"
 
 EOF
     fi
+    cd $BASEDIR # go back to module dir
     date >> AAA-build-ok
 fi
 
@@ -97,6 +99,11 @@ OMPI_LIBS+=" orte/.libs/libopen-rte.so.12"
 OMPI_LIBS+=" ompi/mpi/cxx/.libs/libmpi_cxx.so.1"
 OMPI_LIBS+=" orte/tools/orted/.libs/orted.so"
 OMPI_LIBS+=" orte/tools/orterun/.libs/orterun.so"
+# Fortran libs
+# There are multiple libraries under ompi/mpi/fortran/, and it is not obvious
+# which libs will be selected by ./configure, so include all compiled libs.
+fortran_libs=`cd ompi-release/$BUILD_DIR && find . -iname '*\.so\.[0-9]' -o -iname '*\.so\.[0-9][0-9]'`
+OMPI_LIBS+=" $fortran_libs "
 
 # Open MPI programs and base set of libraries
 echo "" > "$BASEDIR/usr.manifest"
@@ -112,6 +119,12 @@ done
 echo "" >> "$BASEDIR/usr.manifest"
 echo "/usr/lib/libmpi.so.1:    ->/usr/lib/libmpi.so.12" >> "$BASEDIR/usr.manifest"
 echo "/usr/bin/mpirun:    ->/usr/lib/orterun.so" >> "$BASEDIR/usr.manifest"
+
+# To test fortran support, uncomment lines below. After rebuild, run VM as:
+#    ./scripts/run.py -dV -e "/usr/bin/mpirun --allow-run-as-root -H localhost -np 2 /hello_mpifh.so"
+#(cd  ${SRCDIR}/examples/ && mpifort -g hello_mpifh.f -o hello_mpifh.so -fPIC -shared)
+#echo "/hello_mpifh.so:    ${SRCDIR}/examples/hello_mpifh.so" >> "$BASEDIR/usr.manifest"
+#OMPI_LIBS+=" ../examples/hello_mpifh.so "  # to include its dependencies
 
 # Add Open MPI help files.
 # make install puts them into $HOME subdir, and that path is then baked into compiled binaries too.
