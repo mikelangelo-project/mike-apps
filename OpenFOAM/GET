@@ -67,6 +67,9 @@ APPDIRS+=" applications/utilities/parallelProcessing/decomposePar"
 APPDIRS+=" applications/utilities/parallelProcessing/reconstructPar"
 
 cd $BASEDIR
+set -o nounset
+rm -fr "$ROOTFS"
+set +o nounset
 mkdir -p $ROOTFS/usr/lib
 mkdir -p $ROOTFS/usr/bin
 mkdir -p $ROOTFS/openfoam
@@ -121,17 +124,45 @@ done
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libfieldFunctionObjects.so $ROOTFS/usr/lib
 install $SRCDIR/platforms/$WM_OPTIONS/lib/libforces.so $ROOTFS/usr/lib
 
+# Gdb has problem with files copied to ROOTFS.
+# loader.py does find .so file in ROOTFS, but it doesn't know where are object files.
+# Put path to original .so files (ffsrc) into usr.manifest, instead of
+# path to copies in ROOTFS/ (ffdest).
+echo "" > usr.manifest
+FFSO=`find $ROOTFS -type f -iname '*\.so'`
+for ffdest in $FFSO
+do
+    #echo '--------------------------------'
+    #echo "DBG ffdest=$ffdest"
+    ffbase=`basename $ffdest`
+    ffsrc=`find $SRCDIR/platforms/ -type f -iname $ffbase`
+
+    #echo "DBG ffsrc=$ffsrc"
+    # We have platforms/linux64GccDPOpt/lib/dummy/libPstream.so and
+    # platforms/linux64GccDPOpt/lib/openmpi-system/libPstream.so
+    # Use the open-mpi one.
+    ffsrc2=`echo "$ffsrc" | sed '/\/lib\/dummy\//d'`
+    # But libmetisDecomp.so is only in dummy, so check for empth ffsrc2
+    if [ ! -z "$ffsrc2" ]
+    then
+        ffsrc=$ffsrc2
+    fi
+    #echo "DBG ffsrc2=$ffsrc2"
+
+    ffdest2=`echo $ffdest | sed "s|$ROOTFS||"`
+    #echo "DBG ffdest2=$ffdest2"
+    echo "$ffdest2: $ffsrc" >> usr.manifest
+done
+
 # Copy the configuration files and scripts to the image.
 cp -r $SRCDIR/etc $ROOTFS/openfoam
 
-echo "
-/usr/bin/**: ${ROOTFS}/usr/bin/**
-/usr/lib/**: ${ROOTFS}/usr/lib/**
+echo "#
 /openfoam/etc/**: $ROOTFS/openfoam/etc/**
-
+#
 /usr/bin/decomposePar: ->/usr/bin/decomposePar.so
 /usr/bin/reconstructPar: ->/usr/bin/reconstructPar.so
-" > usr.manifest
+" >> usr.manifest
 
 # Tu run the openfoam on OSv you need to upload the case explicitly with
 # ./scripts/upload-case.py script.
