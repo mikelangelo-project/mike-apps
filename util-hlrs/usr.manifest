@@ -1,0 +1,11 @@
+# HLRS vTorque creates some directories (mountpoints) in each VM during boot.
+# Cloud-init bootcmd: stanza is used for that.
+# The boot cmd is not (yet?) supported in OSv, so we create those 
+# directories here.
+
+/home:                   ${MODULE_DIR}/ROOTFS/home
+/workspace:              ${MODULE_DIR}/ROOTFS/workspace
+/scratch:                ->/workspace
+/var/spool/torque/aux:   ${MODULE_DIR}/ROOTFS//var/spool/torque/aux
+/var/spool/torque/vm:    ${MODULE_DIR}/ROOTFS/var/spool/torque/vm
+/etc/profile.d:          ${MODULE_DIR}/ROOTFS/etc/profile.d
