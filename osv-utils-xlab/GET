@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# exit on error
+set -e
+
+VERSION='98d9964134334e2e6f15ac2fe6d4c20980d7d44a'
+BASEDIR="$PWD"
+SRCDIR="$BASEDIR/osv-utils-xlab"
+
+# enable parallel build
+export MAKEFLAGS="-j `nproc`"
+
+if [ ! -d osv-utils-xlab ]; then
+    # Checkout code
+    git clone https://github.com/mikelangelo-project/osv-utils-xlab
+    (cd osv-utils-xlab && git checkout $VERSION)
+fi
+
+# compile
+(cd osv-utils-xlab && make -j $MAKEFLAGS)
+
+# Generate usr.manifest
+cat <<EOF >"$BASEDIR/usr.manifest"
+/usr/bin/cd.so:    ${SRCDIR}/cd.so
+/usr/bin/sleep.so:    ${SRCDIR}/sleep.so
+EOF
+
