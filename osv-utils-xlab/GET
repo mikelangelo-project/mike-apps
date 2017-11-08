@@ -3,7 +3,7 @@
 # exit on error
 set -e
 
-VERSION='98d9964134334e2e6f15ac2fe6d4c20980d7d44a'
+VERSION='bf4a4c8ae9eab0801a32316a40ef63b8a2247ae3'
 BASEDIR="$PWD"
 SRCDIR="$BASEDIR/osv-utils-xlab"
 
@@ -21,7 +21,9 @@ fi
 
 # Generate usr.manifest
 cat <<EOF >"$BASEDIR/usr.manifest"
-/usr/bin/cd.so:    ${SRCDIR}/cd.so
+/usr/bin/cd.so:       ${SRCDIR}/cd.so
 /usr/bin/sleep.so:    ${SRCDIR}/sleep.so
+/usr/bin/cat.so:      ${SRCDIR}/cat.so
+/usr/bin/echo.so:     ${SRCDIR}/echo.so
 EOF
 
